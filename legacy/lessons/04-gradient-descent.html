@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 4 课 · 训练就是下山：损失函数与梯度下降 — 拓智</title>
+<meta name="description" content="损失函数是给猜错程度打分的尺子，梯度下降是蒙着眼下山。在 3D 损失地形上亲手调学习率，看懂 AI 训练的全部秘密。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：3D 下山演示 ---------- */
+.gd-wrap { position: relative; width: 100%; height: 360px; }
+.gd-wrap canvas { border-radius: var(--r-md); touch-action: none; }
+.gd-fallback { display: none; padding: 18px; font-size: 14px; line-height: 1.7; color: var(--fg-1); background: var(--bg-inset); border-radius: var(--r-md); }
+.gd-status { margin-top: 14px; font-size: 13.5px; font-weight: 600; color: var(--fg-1); min-height: 40px; line-height: 1.55; }
+.gd-status .num { font-variant-numeric: tabular-nums; color: var(--fg-0); }
+.gd-status .ok { color: var(--sage); }
+.gd-status .warn { color: var(--terracotta); }
+#gd-curve { width: 100%; margin-top: 10px; display: block; }
+.chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.prose p { font-size: 15px; color: var(--fg-1); line-height: 1.75; }
+.prose p + p { margin-top: 10px; }
+.prose b { color: var(--fg-0); }
+.mt14 { margin-top: 14px; }
+@media (max-width: 700px) { .gd-wrap { height: 300px; } }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第一阶段 · 直觉篇</span> / <span>第 4 课</span>
+    </div>
+    <h1>训练就是下山：损失函数与梯度下降</h1>
+    <p class="subhead">把"猜错的程度"变成一座山，训练就是闭着眼摸索下山。在 3D 地形图上看懂 AI 如何一步步变聪明。</p>
+    <div class="meta">
+      <span class="pill pill-ink">基础</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span>
+      <span class="pill pill-terracotta">核心难点</span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 25 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>一句话讲清损失函数 —— 给"猜错的程度"打分的尺子，并能亲手算一个平方损失</div>
+      <div class="goal-item"><span class="tick">✓</span>在脑中放一幅终身受用的画面：训练 = 蒙眼下山，梯度指方向，学习率定步幅</div>
+      <div class="goal-item"><span class="tick">✓</span>亲手调学习率，看见"太小磨蹭、太大震荡甚至被甩飞"的全过程</div>
+      <div class="goal-item"><span class="tick">✓</span>说清局部最优是什么，以及为什么在亿万维空间里它没那么可怕</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：把"错"变成一座山</h2>
+    <p class="lead">上一课你认识了神经元：它用权重给输入打分。可权重的数值从哪来？答案朴素得让人意外 —— 一开始全是<b>随机数</b>，模型满嘴胡说。所谓"训练"，就是把亿万个随机数一点点调成有用的数。整件事只有三步棋。</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">第 1 步 · 立一把尺子</div>
+        <div class="en">损失函数 <b>Loss</b></div>
+        <div class="zh">给每一次"猜错"打分：错得越离谱，分数越高。有了这把尺子，"模型好不好"第一次变成了<b>一个可计算的数字</b>。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 2 步 · 定一个目标</div>
+        <div class="en">损失<b>最小化</b></div>
+        <div class="zh">训练的全部目标就一句话：找到让损失尽可能小的那组参数。AI 没有"想学好"的愿望，它只是被算法推着往损失更低处挪。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 3 步 · 选一种走法</div>
+        <div class="en">梯度下降 <b>Gradient Descent</b></div>
+        <div class="zh">把损失想象成海拔，训练就是<b>蒙着眼下山</b>：摸摸脚下哪边最陡，朝下坡迈一小步，再摸再迈 —— 重复亿万次。</div>
+      </div>
+    </div>
+    <div class="example mt14">
+      <div class="en">损失 = (猜的值 − 真实值)<sup>2</sup></div>
+      <div class="zh">最常用的一把尺子：平方损失。预测房价时，猜 520 万、实际 500 万，差 20，损失 400；猜 510 万只差 10，损失 100。平方有两个用意：<b>抹掉正负号</b>（多猜少猜都算错），以及<b>狠狠放大离谱的错误</b> —— 差 20 的罚分是差 10 的 4 倍。</div>
+    </div>
+    <p class="lead mt14">这套"下山法"里有四个固定角色。记牢这四张卡，后面每一课都会反复用到。</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">角色一 · 计分尺</div>
+        <div class="en">损失函数 <b>Loss Function</b></div>
+        <div class="zh">把"错得有多离谱"压成一个数。它定义了那座山的<b>形状</b> —— 换一把尺子，山就换一座。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">角色二 · 脚下的坡感</div>
+        <div class="en">梯度 <b>Gradient</b></div>
+        <div class="zh">告诉你当前位置<b>哪个方向坡最陡</b>。它只感知脚下这一小块地，看不见整座山 —— 这就是"蒙眼"的含义。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">角色三 · 步幅</div>
+        <div class="en">学习率 <b>Learning Rate</b></div>
+        <div class="zh">每一步迈多大。太小：磨蹭半天下不了山；太大：一脚跨过谷底、在两侧山壁间来回弹跳，甚至直接飞出去。下面的演示里你可以亲手试。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">角色四 · 小坑陷阱</div>
+        <div class="en">局部最优 <b>Local Minimum</b></div>
+        <div class="zh">下进一个小坑，四面都是上坡，蒙着眼的你以为到底了 —— 其实远处还有更深的谷。这是梯度下降<b>天生的局限</b>。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 蒙眼下山：每一步到底发生了什么</h2>
+    <p class="lead">为什么强调"蒙着眼"？因为模型永远看不到整座山的全貌 —— 它唯一能做的，是感知自己脚下这一小块地的坡度。把下山的每个要素翻译成训练术语，对照如下。</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>下山时的你</th><th>训练中的模型</th><th>一句话点破</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="be">山的海拔</td><td>损失值</td><td class="ex">海拔越低，错得越少</td></tr>
+          <tr><td class="be">你站的位置</td><td>当前参数（所有权重）</td><td class="ex">挪动位置 = 修改参数</td></tr>
+          <tr><td class="be">脚下的坡度</td><td>梯度</td><td class="ex">指向最陡的方向，只能感知脚下</td></tr>
+          <tr><td class="be">一步的大小</td><td>学习率</td><td class="ex">由人提前设定，最重要的"旋钮"之一</td></tr>
+          <tr><td class="be">走到走不动</td><td>收敛</td><td class="ex">梯度 ≈ 0，训练到此为止</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="example mt14">
+      <div class="en">新位置 = 旧位置 − 学习率 × 梯度</div>
+      <div class="zh">整个深度学习最核心的一行式子，人话版：梯度指向上坡，所以取负号<b>朝反方向</b>走；走多远由学习率决定。GPT 级别模型的训练，本质就是这行式子重复亿万次 —— 没有顿悟，没有灵感，只有挪步。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 诚实补充：真实的山有亿万个维度</h2>
+    <p class="lead">3D 演示是一个善意的"谎言"—— 真实的下山发生在你无法想象的空间里。但好消息恰恰也藏在那里。</p>
+    <div class="card card-pad prose">
+      <p><b>维度的真相：</b>演示里只有 2 个参数（小球的横、纵坐标），所以山是三维的。真实大模型动辄数十亿、上千亿个参数 —— <b>每个参数都是一个可以挪动的方向</b>，下山发生在亿万维空间里。没有任何人"看见"过那座山，3D 地形只是把它压扁之后给你的示意图。</p>
+      <p><b>高维的好消息：</b>直觉上维度越高越容易迷路，数学上恰恰相反 —— 维度一高，"四面八方全是上坡"的死坑（真正的局部最优）反而<b>非常罕见</b>：亿万个方向里，总有几个还能往下走。高维空间里更常见的是<b>鞍点</b>（一些方向上坡、另一些方向下坡），而实际使用的下山算法通常能从鞍点附近晃出去。</p>
+      <p><b>实践的共识：</b>所以工程师从不执着于"全局最优"。用改良版的梯度下降（比如 Adam —— 它会为每个方向自适应地微调步幅），找到一个<b>足够低、泛化又好</b>的谷底，模型就足够好用。"完美是好的敌人"，在 AI 训练里是字面意义的真理。</p>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：亲手把小球推下山</h2>
+    <p class="lead">是时候亲眼看了。下面这片起伏地形就是一个损失函数（它真的有两个山谷：一深一浅），小球 = 当前参数的位置，每一步都严格按"新位置 = 旧位置 − 学习率 × 梯度"计算，轨迹线记录它走过的路。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 梯度下降 3D 损失地形</span>
+        <span class="demo-hint">拖动旋转视角 · 滚轮缩放</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <div class="gd-wrap" id="gd-wrap">
+            <div class="gd-fallback" id="gd-fallback"></div>
+          </div>
+        </div>
+        <div class="demo-side">
+          <h4>下山控制台</h4>
+          <div class="period">小球只凭脚下坡度决定下一步</div>
+          <div class="slider-row">
+            <label for="gd-lr">学习率</label>
+            <input type="range" id="gd-lr" min="0.01" max="1.5" step="0.01" value="0.15" aria-label="学习率，0.01 到 1.5">
+            <span class="val" id="gd-lr-val">0.15</span>
+          </div>
+          <div class="chips">
+            <button class="chip" id="gd-step">单步 ▸</button>
+            <button class="chip" id="gd-play">自动播放</button>
+            <button class="chip" id="gd-reset">重新随机起点</button>
+          </div>
+          <div class="gd-status" id="gd-status">点「自动播放」开始下山，或用「单步」一步一步走。</div>
+          <svg id="gd-curve" viewBox="0 0 240 84" aria-label="损失值随步数下降的折线图">
+            <line x1="6" y1="78" x2="234" y2="78" stroke="var(--hairline-strong)" stroke-width="1"/>
+            <text x="6" y="12" font-size="10" fill="var(--fg-2)">损失 ↓</text>
+            <polyline id="gd-line" fill="none" stroke="var(--sky)" stroke-width="2" stroke-linejoin="round" points=""/>
+          </svg>
+          <div class="footnote">↑ 损失下降曲线：每走一步记一个点</div>
+          <p>建议顺序：① 学习率 0.15 自动播放，看小球稳稳下山；② 调到 0.03，感受磨蹭；③ 拉到 1.2 以上换个起点，看它在谷壁间弹跳、甚至被甩出地形；④ 多换几次起点 —— 总有一次会停进那个浅坑，那就是局部最优。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">AI 训练像人类一样会"开窍"、会"顿悟"</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">训练只是"新位置 = 旧位置 − 学习率 × 梯度"重复亿万次的数值优化，没有任何灵光乍现的瞬间</span></div>
+        </div>
+        <p class="why"><b>病因：</b>媒体偏爱"AI 学会了""AI 领悟了"这类拟人动词。打开真实的训练日志，你只会看到损失值一点一点往下掉 —— 即便模型最终表现出惊人的"涌现能力"（第 15 课），底层也只是这条平滑下山路的日积月累。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">学习率越大，学得越快</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">适中才快：过大会一脚跨过谷底，在两侧山壁间来回震荡，甚至损失越走越高、彻底发散</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"步子大"等同于"进度快"。山谷往往很窄，大步会直接踩到对面山壁上，比原来还高。回到上面的演示，把学习率拉到 1.2 以上 —— 亲眼看小球被甩出山谷，比任何解释都管用。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">只要训练得够久，总能找到全局最优</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">梯度下降只保证"一路向下"，不保证下到全世界最低点 —— 但实践上"足够低"就够好用</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把优化当成必须满分的考试。亿万维空间根本无法穷举，工程上的共识是：找到一个泛化得好的低谷，远比执着理论上的最优重要 —— "泛化"是什么？下一课正好讲。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 用平方损失算一算：某房实际成交 500 万，模型 A 预测 510 万，模型 B 预测 530 万。两者损失各是多少？B 的罚分是 A 的几倍？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">A 差 10，损失 10² = <b>100</b>；B 差 30，损失 30² = <b>900</b>。差距只有 3 倍，罚分却是 <b>9 倍</b> —— 平方损失就是故意的：它对离谱的错误格外严厉，逼着模型优先修正大错。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 既然目标是找最低点，为什么不让计算机把整座山"看一遍"、直接挑出最低处，而要蒙着眼一步步摸索？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">因为山有<b>亿万个维度</b>。哪怕每个参数只试 10 个取值，10 亿个参数的组合数也是 10 的 10 亿次方 —— 宇宙里的原子加起来都不够记。穷举不可能，于是只剩一条路：从随机起点出发，凭局部坡度一步步走。<b>梯度下降不是最聪明的办法，而是唯一付得起的办法。</b></div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 把学习率设成 0.001 和 1.5，分别大概率会发生什么？实践中常用什么策略兼顾两头？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">0.001：每步太小，<b>下降极慢</b>，走几百步可能还在半山腰；1.5：步子太大，<b>一脚跨过谷底踩上对面山壁</b>，损失来回震荡甚至越来越大（发散）。实践常用<b>先大后小</b>的学习率调度：开局大步快速接近山谷，越接近谷底步幅越小，稳稳落底。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="03-a-single-neuron.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">03 一个神经元的诞生：权重、偏置与激活</div>
+    </a>
+    <a class="card next" href="05-data-and-overfitting.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">05 数据为王：训练集、测试集与过拟合</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 学习率滑块数值显示（不依赖 3D 库，始终可用） ---------- */
+(function () {
+  const lr = document.getElementById('gd-lr');
+  const val = document.getElementById('gd-lr-val');
+  lr.addEventListener('input', () => { val.textContent = (+lr.value).toFixed(2); });
+})();
+</script>
+
+<script type="module">
+/* ============================================================
+   3D 梯度下降演示：损失地形 + 小球下山 + 轨迹 + 损失曲线
+   ============================================================ */
+const wrap = document.getElementById('gd-wrap');
+const fallbackEl = document.getElementById('gd-fallback');
+const statusEl = document.getElementById('gd-status');
+const lineEl = document.getElementById('gd-line');
+const lrInput = document.getElementById('gd-lr');
+const btnStep = document.getElementById('gd-step');
+const btnPlay = document.getElementById('gd-play');
+const btnReset = document.getElementById('gd-reset');
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function showFallback(msg) {
+  fallbackEl.textContent = msg + ' 不过画面可以想象：一片起伏的山谷地形，小球从随机位置出发，每一步摸一摸脚下坡度、朝最陡的下坡挪一小步，最终在谷底停下；学习率太大时，它会在两侧山壁间来回弹跳，甚至被甩出地形。';
+  fallbackEl.style.display = 'block';
+  [btnStep, btnPlay, btnReset].forEach(b => b.disabled = true);
+}
+
+/* ---------- 损失地形：两三个高斯峰谷叠加 + 缓碗 ---------- */
+const G = (x, z, cx, cz, s) => Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / s);
+function lossFn(x, z) {
+  return 1.8
+    - 2.1 * G(x, z, -1.4, -1.1, 1.2)   // 深谷：接近全局最优
+    - 1.15 * G(x, z, 1.7, 1.4, 0.7)    // 浅坑：局部最优
+    + 1.35 * G(x, z, 0.9, -1.3, 1.1)   // 山峰
+    + 0.14 * (x * x + z * z);          // 缓碗，让边缘也有坡度
+}
+function grad(x, z) {
+  const h = 0.012;
+  return [
+    (lossFn(x + h, z) - lossFn(x - h, z)) / (2 * h),
+    (lossFn(x, z + h) - lossFn(x, z - h)) / (2 * h),
+  ];
+}
+
+(async () => {
+  let THREE, OrbitControls;
+  try {
+    THREE = await import('three');
+    ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+  } catch (e) {
+    showFallback('3D 库需要从 CDN 加载，当前网络环境下加载失败。');
+    return;
+  }
+  try {
+    init(THREE, OrbitControls);
+  } catch (e) {
+    showFallback('你的浏览器暂不支持 WebGL，3D 演示无法启动。');
+  }
+})();
+
+function init(THREE, OrbitControls) {
+  const YS = 0.55;           // 高度缩放
+  const LMIN = 0.1, LMAX = 4.4;
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  /* ----- 渲染器 / 场景 / 相机 ----- */
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);                       // 透明背景，跟随页面主题
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  wrap.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+  camera.position.set(5.2, 4.4, 5.6);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(4, 8, 3);
+  scene.add(sun);
+
+  /* ----- 地形（顶点高度 + 顶点着色） ----- */
+  const geo = new THREE.PlaneGeometry(6, 6, 96, 96);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, lossFn(pos.getX(i), pos.getZ(i)) * YS);
+  }
+  geo.computeVertexNormals();
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
+
+  const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+  scene.add(new THREE.Mesh(geo, terrainMat));
+
+  const wireMat = new THREE.MeshBasicMaterial({ wireframe: true, transparent: true, opacity: 0.14 });
+  const wireMesh = new THREE.Mesh(geo, wireMat);
+  wireMesh.position.y = 0.006;
+  scene.add(wireMesh);
+
+  /* ----- 小球与轨迹 ----- */
+  const ballMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0.35 });
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 16), ballMat);
+  scene.add(ball);
+
+  const MAXP = 800;
+  const trailArr = new Float32Array(MAXP * 3);
+  const trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailArr, 3));
+  trailGeo.setDrawRange(0, 0);
+  const trailMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9 });
+  const trail = new THREE.Line(trailGeo, trailMat);
+  trail.frustumCulled = false;
+  scene.add(trail);
+  let trailCount = 0;
+
+  /* ----- 主题取色（深浅色自动跟随） ----- */
+  function applyColors() {
+    const low = new THREE.Color(cssVar('--sage'));
+    const high = new THREE.Color(cssVar('--amber'));
+    const ink = new THREE.Color(cssVar('--fg-0'));
+    const hot = new THREE.Color(cssVar('--terracotta'));
+    const col = geo.attributes.color;
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const t = Math.min(1, Math.max(0, (pos.getY(i) / YS - LMIN) / (LMAX - LMIN)));
+      c.copy(low).lerp(high, Math.pow(t, 0.85));
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
+    wireMat.color.copy(ink);
+    trailMat.color.copy(ink);
+    ballMat.color.copy(hot);
+    ballMat.emissive.copy(hot);
+  }
+  applyColors();
+
+  /* ----- 交互控制 ----- */
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.7, 0);
+  controls.enablePan = false;
+  controls.minDistance = 3.5;
+  controls.maxDistance = 13;
+  controls.maxPolarAngle = 1.45;
+  controls.enableDamping = !reduceMotion;
+  controls.update();
+
+  /* ----- 下山状态机 ----- */
+  let px = 0, pz = 0, steps = 0, done = false, playing = false;
+  let hist = [];
+
+  function render() { renderer.render(scene, camera); }
+
+  function placeBall() { ball.position.set(px, lossFn(px, pz) * YS + 0.12, pz); }
+
+  function pushTrail() {
+    if (trailCount >= MAXP) return;
+    const i = trailCount * 3;
+    trailArr[i] = px;
+    trailArr[i + 1] = lossFn(px, pz) * YS + 0.07;
+    trailArr[i + 2] = pz;
+    trailCount++;
+    trailGeo.setDrawRange(0, trailCount);
+    trailGeo.attributes.position.needsUpdate = true;
+  }
+
+  function drawCurve() {
+    if (hist.length < 2) { lineEl.setAttribute('points', ''); return; }
+    const pts = [];
+    for (let i = 0; i < hist.length; i++) {
+      const x = 6 + (i / (hist.length - 1)) * 228;
+      const L = Math.min(Math.max(hist[i], 0), 4.6);
+      pts.push(x.toFixed(1) + ',' + (78 - (L / 4.6) * 66).toFixed(1));
+    }
+    lineEl.setAttribute('points', pts.join(' '));
+  }
+
+  function setStatus(html) { statusEl.innerHTML = html; }
+
+  function setPlaying(v) {
+    playing = v;
+    btnPlay.textContent = v ? '⏸ 暂停' : '自动播放';
+    btnPlay.classList.toggle('active', v);
+  }
+
+  function finish() {
+    done = true;
+    setPlaying(false);
+    const L = lossFn(px, pz);
+    if (L < 0.8) {
+      setStatus('<span class="ok">✓ 到达最深的谷底！</span>脚下几乎全平（梯度 ≈ 0），损失停在 <span class="num">' + L.toFixed(2) + '</span>，共走 <span class="num">' + steps + '</span> 步。');
+    } else if (L < 1.6) {
+      setStatus('<span class="ok">✓ 停进了一个坑底</span>（损失 <span class="num">' + L.toFixed(2) + '</span>）。旋转地形看看 —— 远处还有更深的谷。这就是<b>局部最优</b>。');
+    } else {
+      setStatus('⏸ 停在了一处平地（鞍点或山顶附近），梯度 ≈ 0 也会卡住。换个起点再试。');
+    }
+  }
+
+  function diverge() {
+    done = true;
+    setPlaying(false);
+    setStatus('<span class="warn">✗ 学习率太大，小球被甩出了山谷！</span>调小学习率，点「重新随机起点」再来。');
+  }
+
+  function doStep() {
+    if (done) return;
+    const [gx, gz] = grad(px, pz);
+    if (Math.hypot(gx, gz) < 0.03) { finish(); drawCurve(); return; }
+    const lr = +lrInput.value;
+    px -= lr * gx;
+    pz -= lr * gz;
+    steps++;
+    const L = lossFn(px, pz);
+    hist.push(L);
+    placeBall();
+    pushTrail();
+    if (!isFinite(L) || Math.abs(px) > 3.6 || Math.abs(pz) > 3.6) {
+      diverge();
+    } else {
+      setStatus('第 <span class="num">' + steps + '</span> 步 · 当前损失 <span class="num">' + L.toFixed(3) + '</span>');
+      if (steps >= 500) { setPlaying(false); setStatus('走了 <span class="num">500</span> 步还没停 —— 学习率太小会磨蹭很久，调大一点试试？'); }
+    }
+    drawCurve();
+  }
+
+  function randomStart() {
+    setPlaying(false);
+    done = false;
+    steps = 0;
+    for (let i = 0; i < 30; i++) {
+      px = -2.7 + Math.random() * 5.4;
+      pz = -2.7 + Math.random() * 5.4;
+      if (lossFn(px, pz) > 1.4) break;     // 从半山腰出发，留出下山的路
+    }
+    hist = [lossFn(px, pz)];
+    trailCount = 0;
+    trailGeo.setDrawRange(0, 0);
+    placeBall();
+    pushTrail();
+    drawCurve();
+    setStatus('新起点就绪（损失 <span class="num">' + hist[0].toFixed(2) + '</span>）。点「自动播放」开始下山。');
+    if (reduceMotion) render();
+  }
+
+  btnStep.addEventListener('click', () => { doStep(); if (reduceMotion) render(); });
+  btnReset.addEventListener('click', randomStart);
+  btnPlay.addEventListener('click', () => {
+    if (done) { setStatus('这一程已结束 —— 点「重新随机起点」再来一次。'); return; }
+    if (reduceMotion) {                      // 减弱动效：一次性走完，直接显示完成态
+      let guard = 0;
+      while (!done && guard++ < 400) doStep();
+      render();
+      return;
+    }
+    setPlaying(!playing);
+  });
+
+  /* ----- 自适应尺寸 / 主题切换 ----- */
+  new ResizeObserver(() => {
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    if (reduceMotion) render();
+  }).observe(wrap);
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    applyColors();
+    if (reduceMotion) render();
+  });
+
+  /* ----- 渲染循环 ----- */
+  randomStart();
+  if (reduceMotion) {
+    controls.addEventListener('change', render);   // 静态首帧，仍可拖动旋转
+    render();
+  } else {
+    let lastStep = 0;
+    renderer.setAnimationLoop((t) => {
+      controls.update();
+      if (playing && t - lastStep > 160) { lastStep = t; doStep(); }
+      render();
+    });
+  }
+}
+</script>
+
+</body>
+</html>

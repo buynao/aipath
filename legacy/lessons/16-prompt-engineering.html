@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 16 课 · 提示工程：和 AI 对话的艺术 — 拓智</title>
+<meta name="description" content="Prompt 不是咒语，是给'文字接龙'设定续写条件。五大技法（角色受众、few-shot 示例、思维链、格式模板、划边界）+ system 提示词 + 长 prompt 结构化，配「续写区圈地机」等三个交互演示，亲手看 prompt 如何改写概率分布。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：技法列表 / 改造步骤 / 文档式 prompt ---------- */
+.mt-14 { margin-top: 14px; }
+.step + .step { margin-top: 18px; }
+.step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.step-head .step-name { font-size: 15px; font-weight: 700; }
+.step .verdict { font-size: 14px; color: var(--fg-1); margin-top: 8px; }
+.step .verdict b { color: var(--fg-0); }
+.doc-prompt { font-size: 14px; line-height: 1.9; background: var(--bg-inset); border-radius: var(--r-md); padding: 16px 20px; }
+.doc-prompt .sec { font-weight: 700; }
+
+/* ---------- 交互 1：续写区"圈地机" ---------- */
+#pr-svg .bar, #pr-svg .gauge-fill { transition: width 0.4s ease, fill 0.25s ease; }
+#pr-svg .pf { fill: var(--fg-2); opacity: 0.55; transition: opacity 0.2s ease; }
+#pr-svg .pf.on { opacity: 1; font-weight: 600; }
+.pr-preview { font-size: 13.5px; line-height: 1.8; color: var(--fg-1); background: var(--bg-inset); border-radius: var(--r-md); padding: 10px 14px; margin-top: 12px; }
+
+/* ---------- 交互 2：约束放 user 还是 system ---------- */
+.su-chat { width: 100%; align-self: flex-start; display: flex; flex-direction: column; gap: 8px; }
+.su-msg { font-size: 13px; line-height: 1.65; padding: 8px 12px; border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--hairline); animation: su-in 0.25s ease; }
+.su-msg .su-role { font-size: 11px; font-weight: 700; color: var(--fg-2); margin-right: 6px; }
+.su-msg .su-text { color: var(--fg-1); }
+.su-msg.sys { background: var(--amber-bg); border-left: 3px solid var(--amber); }
+.su-msg.user { background: var(--sky-bg); }
+.su-msg.asst { background: var(--sage-bg); }
+.su-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: var(--r-pill); margin-left: 6px; white-space: nowrap; }
+.su-badge.ok { color: var(--sage); background: var(--sage-bg); }
+.su-badge.over { color: var(--terracotta); background: var(--terracotta-bg); }
+@keyframes su-in { from { opacity: 0; transform: translateY(4px); } }
+.su-where { font-size: 12.5px; font-weight: 600; margin-top: 12px; padding: 8px 12px; border-radius: var(--r-md); background: var(--bg-inset); }
+.demo-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.chip[disabled] { opacity: 0.45; cursor: default; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #pr-svg .bar, #pr-svg .gauge-fill, #pr-svg .pf { transition: none; }
+  .su-msg { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第四阶段 · 应用篇</span> / <span>第 16 课</span>
+    </div>
+    <h1>提示工程：和 AI 对话的艺术</h1>
+    <p class="subhead">角色设定、少样本示例、思维链……提示工程不是玄学话术，而是一套有原理可循的工程方法。</p>
+    <div class="meta">
+      <span class="pill pill-ink">基础</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span>
+      <span class="footnote">约 25 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>一句话说清 prompt 的本质：给"文字接龙"设定续写条件 —— 从此能自己鉴别任何提示技巧是工程还是玄学</div>
+      <div class="goal-item"><span class="tick">✓</span>掌握五大技法：设角色受众、给示例、给步骤、定格式、划边界 —— 每一招都知道它为什么有效</div>
+      <div class="goal-item"><span class="tick">✓</span>分清 system 和 user 两类提示词：全局约束放哪、为什么放那里更"管用"</div>
+      <div class="goal-item"><span class="tick">✓</span>会写结构化长 prompt（信息分区 + 重点放两头），并能亲手把「帮我写点东西」改造成能直接交付的好 prompt</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：你打出的每个字，都在给 AI 划"续写区"</h2>
+    <p class="lead">网上流传着无数"ChatGPT 神级咒语大全"，仿佛和 AI 对话靠的是背口诀。先把底牌亮出来：第 12 课你已经知道，大模型唯一会做的事是<b>接着前文往下接龙</b> —— 每生成一个 token 之前，它都要对词表里几万个候选算一遍概率（第 14 课）。那么 prompt 是什么？它不是"命令"，而是接龙的<b>前文</b>。模型训练时读过整个互联网，什么样的前文后面通常跟什么样的后文，全被压进了它的参数里 —— 你写下的每一个字，都在改变"接下来最可能出现什么"的概率表。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">直觉印象</span></div>
+        <div class="big">prompt 是下给 AI 的命令 <span class="gap">→</span> 措辞够"讨喜"，它就愿意好好干</div>
+        <p class="note">按这个理解，提示工程就是揣摩 AI 的"心情"，自然会滑向收集咒语、迷信话术。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">真实机制</span></div>
+        <div class="big">prompt 是续写的条件 <span class="gap">→</span> 每个字都把后文分布<span class="hl">推向某片训练数据区</span></div>
+        <p class="note">提示工程 = 用文字给模型"圈地"：把它的续写范围从"全网平均"收窄到你想要的那片文本区域。</p>
+      </div>
+    </div>
+    <p class="lead mt-14">用这个视角看一个你大概率用过的技巧：</p>
+    <div class="example">
+      <div class="en">「假装你是一位<span class="hl">资深合同律师</span>，帮我审一下这份租房合同。」—— 为什么这一句立刻让回答变专业？</div>
+      <div class="zh">不是模型"入戏了"这种魔法。训练数据里，"资深律师"这个词周围聚集着海量法律文本：合同条款、法律意见书、风险提示。这句话一出，后续 token 的概率分布就<b>对齐到那片区域</b> —— 措辞变严谨、主动逐条找风险、引用条款编号，全是那片文本区的统计特征。角色扮演有效，原理就这么朴素。</div>
+    </div>
+    <p class="lead mt-14">光看例子不过瘾，亲手"圈"一次。同一个问题「解释一下量子计算」，右侧四味配料随意增删，左图实时显示两件事：模型接下来<b>最可能续写成哪种文体</b>，以及续写范围被收得多窄。建议玩法：先全关，看"全网平均"长什么样；再一味一味加上去；最后随手撤掉一味 —— 看分布立刻弹回去。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 续写区"圈地机"</span>
+        <span class="demo-hint">点右侧配料增删 · 左图分布实时联动</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="pr-svg" viewBox="0 0 460 352" width="440" aria-label="交互图：上方是当前 prompt 文本，下方五条横向概率条表示五种续写文体的概率，随右侧配料开关实时变化，底部一条指示续写范围的宽窄">
+            <text x="20" y="20" font-size="12" fill="var(--fg-2)">你写下的 prompt（灰色 = 还没加上）</text>
+            <rect x="20" y="28" width="420" height="112" rx="8" fill="var(--bg-inset)"/>
+            <text class="pf on" x="32" y="52" font-size="12.5" fill="var(--fg-0)">解释一下量子计算。</text>
+            <text class="pf" id="pf-role" x="32" y="73" font-size="12.5">＋ 你是科普专栏作者，</text>
+            <text class="pf" id="pf-aud" x="32" y="94" font-size="12.5">＋ 讲给完全没学过物理的高中生听：</text>
+            <text class="pf" id="pf-fmt" x="32" y="115" font-size="12.5">＋ 多用比喻，不出现公式，300 字以内。</text>
+            <text class="pf" id="pf-bnd" x="32" y="136" font-size="12.5">＋ 拿不准的进展直说"尚无定论"，不要夸大。</text>
+            <text x="20" y="164" font-size="12" fill="var(--fg-2)">接下来最可能续写成 ——</text>
+            <g class="pr-row" data-style="wiki">
+              <text x="20" y="184" font-size="12.5" fill="var(--fg-1)">百科条目式</text>
+              <rect class="bar" x="124" y="171" width="0" height="18" rx="4" fill="var(--sky)" fill-opacity="0.78"/>
+              <text class="pct" x="440" y="184" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+            </g>
+            <g class="pr-row" data-style="paper">
+              <text x="20" y="214" font-size="12.5" fill="var(--fg-1)">学术综述式</text>
+              <rect class="bar" x="124" y="201" width="0" height="18" rx="4" fill="var(--sky)" fill-opacity="0.78"/>
+              <text class="pct" x="440" y="214" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+            </g>
+            <g class="pr-row" data-style="pop">
+              <text x="20" y="244" font-size="12.5" fill="var(--fg-1)">高中科普式</text>
+              <rect class="bar" x="124" y="231" width="0" height="18" rx="4" fill="var(--sky)" fill-opacity="0.78"/>
+              <text class="pct" x="440" y="244" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+            </g>
+            <g class="pr-row" data-style="forum">
+              <text x="20" y="274" font-size="12.5" fill="var(--fg-1)">论坛抖机灵式</text>
+              <rect class="bar" x="124" y="261" width="0" height="18" rx="4" fill="var(--sky)" fill-opacity="0.78"/>
+              <text class="pct" x="440" y="274" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+            </g>
+            <g class="pr-row" data-style="hype">
+              <text x="20" y="304" font-size="12.5" fill="var(--fg-1)">营销热文式</text>
+              <rect class="bar" x="124" y="291" width="0" height="18" rx="4" fill="var(--sky)" fill-opacity="0.78"/>
+              <text class="pct" x="440" y="304" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+            </g>
+            <text x="20" y="338" font-size="12" fill="var(--fg-2)">续写范围</text>
+            <rect x="124" y="330" width="270" height="9" rx="4.5" fill="var(--hairline)"/>
+            <rect class="gauge-fill" id="pr-gauge" x="124" y="330" width="270" height="9" rx="4.5" fill="var(--amber)"/>
+            <text id="pr-gauge-word" x="440" y="338" text-anchor="end" font-size="11.5" fill="var(--fg-1)"></text>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="pr-chips">
+            <button class="chip" data-key="role">① 角色</button>
+            <button class="chip" data-key="aud">② 受众</button>
+            <button class="chip" data-key="fmt">③ 格式</button>
+            <button class="chip" data-key="bnd">④ 边界</button>
+            <button class="chip" id="pr-reset">↺ 全部撤掉</button>
+          </div>
+          <h4 id="pr-title"></h4>
+          <div class="period" id="pr-period"></div>
+          <div class="pr-preview" id="pr-preview"></div>
+          <p id="pr-status"></p>
+        </div>
+      </div>
+    </div>
+    <p class="lead mt-14">把你平时在 ChatGPT / Claude 里见过的现象，和这条机制连上线：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>你在对话里看到的现象</th><th>背后的机制</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>同一个问题，加一句"你是儿科医生"，答案立刻变专业</b></td>
+            <td class="ex">角色词把续写分布推向训练数据中"医生文本"的区域</td>
+          </tr>
+          <tr>
+            <td><b>问题写得含糊，答案也跟着又水又泛</b></td>
+            <td class="ex">含糊前文对应"什么都能接"的宽分布，输出只能取平均 —— 套话是最安全的延续</td>
+          </tr>
+          <tr>
+            <td><b>给了一两个范例，输出风格和格式立刻整齐</b></td>
+            <td class="ex">范例在上下文里划出一片窄分布，"照着范例续写"是概率最高的路径</td>
+          </tr>
+          <tr>
+            <td><b>用中文问编程问题，回答里总夹着英文术语</b></td>
+            <td class="ex">训练数据里编程讨论以英文为主，那片区域的统计特征跟着渗了出来</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead mt-14">理解到这一层，你手里就有了一把<b>万能检验尺</b>：以后再看到任何"提示词技巧"，先问一句 —— <b>它有没有把分布推向我想要的区域？</b>讲得通，才值得收藏；讲不通，多半是时灵时不灵的偏方。这把尺子，是本课和满天飞的"话术帖"的根本区别。还有一个细节先埋下：prompt 不只是你刚打的那行字，<b>整个对话历史（包括模型自己之前的回答）都是续写条件</b> —— 这件事的代价和边界，第 17 课讲上下文窗口时算总账。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 五大技法：每一招都讲得通，才招招稳定</h2>
+    <p class="lead">这五招覆盖日常九成的场景。每招给你三样东西：一个反例、一个正例、一句"为什么有效"。注意一个共同点：正例里<b>没有任何花哨措辞，全是朴素的信息增量</b> —— 你是谁、给谁看、长什么样、什么不能做。改变信息而不是改变语气，这正是工程和玄学的分界线。</p>
+    <div class="card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">「解释一下量子计算。」</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">「你是科普专栏作者，向完全没学过物理的高中生解释量子计算：多用比喻，不出现公式，800 字以内。」</span></div>
+        </div>
+        <p class="why"><b>技法 ① 设定角色与受众。</b>角色定"谁在写"（口吻、用词、知识深度），受众定"写给谁"（详略、比喻多少）。两头都不说，模型只能落在"百科条目式平均答案"上 —— 那是分布最宽、最平庸的位置。一句机制：角色词 + 受众词，把续写分布从"全网均值"收窄到"那类作者写给那类读者"的文本区。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">「帮商品起名，要高级感但不浮夸、朗朗上口、有记忆点、最好带点东方意境……」（形容词堆到第十个，输出依然各凭运气）</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">「帮商品起名。参考两个我满意的：山茶序（护手霜）、栖云盏（香薰蜡烛）。现在给一款檀香木梳起 3 个名字。」</span></div>
+        </div>
+        <p class="why"><b>技法 ② 给示例（few-shot）。</b>与其描述要求，不如给两个范本：形容词人人理解不同，范例没有歧义。模型最强的本事恰恰是<b>模式延续</b> —— 上文出现几个风格一致的"输入 → 输出"对，续写时它会自动沿用同一套隐含规则，连你说不清的"feel"都能学走。这叫 few-shot / 上下文内学习，是 GPT-3 论文最重要的发现之一，也是预训练接龙能力（第 12 课）的直接红利。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">「这道行程应用题，直接告诉我答案。」</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">「请一步步思考：先列出已知条件，再写计算过程，最后单独一行给出答案。」</span></div>
+        </div>
+        <p class="why"><b>技法 ③ 给步骤（激活思维链）。</b>第 15 课见过多步推理"走钢丝"：一步踩空，满盘皆输。让模型把中间步骤写出来，后面的 token 就是在"已写出的前几步"这个条件下生成的 —— 相当于把心算变笔算，每一步都踩在纸面上。这就是思维链（CoT）。第 23 课的推理模型干脆把"先打草稿"训练成了默认动作，对那类模型这句话可以省了；但对普通模型和复杂任务，它依然是性价比最高的一招。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">「把这些信息整理成结构化数据给我。」</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">「严格按这个格式输出，不要输出其他内容：{"name": "商品名", "price": 数字, "tags": ["标签"]}」</span></div>
+        </div>
+        <p class="why"><b>技法 ④ 定格式（要 JSON 就给 JSON 模板）。</b>"结构化"有一万种长法：表格？列表？字段叫什么？分布太宽，输出就随机。模板是上下文里最强的锚点 —— 续写最顺滑的路径就是照着模板填空。当输出要交给程序处理时（第 19 课工具调用、第 26 课写代码），这招从"加分项"变成"必需品"：格式错一个引号，下游代码就崩。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">「我们公司 2025 年 Q3 的退货率是多少？」（模型不知道，也会一本正经编一个）</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">「根据我贴的这份报表回答；如果报表里没有这个数字，直接回答"报表中未提供"，不要估算。」</span></div>
+        </div>
+        <p class="why"><b>技法 ⑤ 划边界（给"不知道"留一条出路）。</b>训练数据里，流畅自信的下文远多于"中途承认不会" —— 你不开口子，"说不知道"这条路在分布里几乎不存在，模型只能硬编（幻觉的重要来源，第 29 课细讲）。明确许可"承认不确定"，等于把这条出路的概率抬起来，幻觉率显著下降。各家官方提示指南都把这招列为降幻觉的第一线手段。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 system 提示词：导演递给演员的人物小传</h2>
+    <p class="lead">打开任何一个大模型 API（第 26 课你会亲手调），你会发现发给模型的消息分成三种角色：<b>system、user、assistant</b>。一个比喻就够了：这是一出戏 —— <b>system 是开拍前导演递给演员的人物小传</b>（你是谁、什么性格、哪些事绝不能做），<b>user 是开拍后观众递上来的一句句台词</b>。台词一直在换，人物小传贯穿全场。</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">幕后 · 整场有效</div>
+        <div class="en">system：<b>人物小传</b></div>
+        <div class="zh">放<b>全局行为约束</b>：身份与口吻、做事准则、安全红线、固定的输出格式。先入为主、压在每一次续写上，普通用户通常看不见它。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">台前 · 随对话流动</div>
+        <div class="en">user：<b>台词</b></div>
+        <div class="zh">放<b>当前这一件事</b>：具体问题、材料、临时要求。每一轮都在变，跟着对话往前滚动。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">看一段真实风格的人物小传：</p>
+    <div class="example">
+      <div class="en">system：「你是'拓智书店'的客服助手。只回答与本店订单、配送、退换货相关的问题；语气友好简洁，每次回答不超过 3 句；查不到订单时引导用户提供订单号，<span class="hl">绝不编造物流信息</span>。」</div>
+      <div class="zh">之后用户无论怎么聊 —— 问书、闲聊、套话 —— 这些约束都压在每一次续写上。你在各种产品里见过的"人设"：客服、毒舌影评人、苏格拉底式导师，本质都是一段你看不见的 system prompt。ChatGPT 的"自定义指令"、Claude 的项目设定，填的也是这个字段。</div>
+    </div>
+    <p class="lead mt-14">为什么全局约束放 system 比塞进 user 里更"管用"？两个原因。其一是位置：system 永远排在对话最前面，整场不动。其二更关键 —— <b>训练使然</b>：第 13 课的对齐阶段，模型被专门调教成按"system 要求优先于 user 要求"的层级行事（厂商管这叫指令层级），遇到冲突时倾向守住 system 的规矩。所以同一句"回答不超过 3 句"，写在 user 里聊几轮就可能被冲淡，写在 system 里要稳得多。第 26 课写你的第一个聊天机器人时，system 就是你要填的第一个参数 —— 那一刻你会发现：所谓"开发一个 AI 应用"，一半的功夫就是把这份人物小传写好。</p>
+    <p class="lead mt-14">空口无凭，做个对照实验：同一条约束「每次回答不超过 3 句」，一次写进 user 的第一句话，一次写进 system，然后往下多聊几轮 —— 看哪边先失效：</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 约束放哪才"管用"</span>
+        <span class="demo-hint">切换约束位置 · 点「再聊一轮」步进对比</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <div class="su-chat" id="su-chat" aria-label="模拟对话记录：约束写在不同位置时，助手每轮回复的句数变化"></div>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="su-modes">
+            <button class="chip active" data-mode="user">约束写进 user</button>
+            <button class="chip" data-mode="sys">约束写进 system</button>
+          </div>
+          <h4 id="su-title"></h4>
+          <p id="su-desc"></p>
+          <div class="su-where" id="su-where"></div>
+          <div class="demo-actions">
+            <button class="chip" id="su-next">▸ 再聊一轮</button>
+            <button class="chip" id="su-reset">↺ 重新开始</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🧱 长 prompt 结构化：把提示词当文档写，而不是当聊天发</h2>
+    <p class="lead">任务一复杂，prompt 就会长到几百上千字：背景、要求、材料、范例搅成一锅粥。这时最常见的失败不是"模型不会"，而是<b>"模型没注意到"</b> —— 你明明写了"别超过 100 字"，它就是当没看见。两条结构原则，治的就是这个病：</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">原则一</div>
+        <div class="en">信息<b>分区</b></div>
+        <div class="zh">背景 / 任务 / 约束 / 示例各立门户，用小标题或分隔线隔开。结构清晰的前文对应训练数据里说明书、需求文档那片"高质量后文"区域；分区也让模型生成时更容易"回头对照"相应区块（注意力的拿手活，第 9 课）。附带的好处：逼你自己先想清楚。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">原则二</div>
+        <div class="en">重点放<b>两头</b></div>
+        <div class="zh">对很长的上下文，模型对<b>中间部分</b>的内容利用得最差 —— 研究者称之为 lost in the middle（第 17 课拆它的机制）。所以关键约束开头定调、结尾重申，别埋在第三段中间等着被"看丢"。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">两条原则合起来，一个像样的长 prompt 长这样：</p>
+    <div class="doc-prompt">
+      <span class="sec">【背景】</span>我们是面向程序员的在线教育公司，下周发布新课《Rust 入门》。<br>
+      <span class="sec">【任务】</span>写 3 条课程预告文案，发在技术社区。<br>
+      <span class="sec">【约束】</span>每条不超过 60 字；语气专业、克制；不出现"家人们"等口水词；不承诺"轻松速成"。<br>
+      <span class="sec">【示例】</span>上次效果最好的一条：「指针让你头疼了十年？Rust 用所有权换你一夜安眠。新课上线，首周 5 折。」<br>
+      <span class="sec">【再次强调】</span>只输出 3 条文案本身，不要解释。
+    </div>
+    <p class="footnote mt-14">注意最后一行 —— 把最在乎的要求在结尾重申一遍，这就是"重点放两头"。这份模板眼熟吗？它就是把五大技法（角色受众可以补进背景区、示例、格式、边界）装进了一个有秩序的容器里。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🛠️ 实战改造：从「帮我写点东西」到能直接交付</h2>
+    <p class="lead">把全课串起来。真实场景：你帮一家咖啡馆运营公众号，想让 AI 写新品推送。看一个烂 prompt 如何四步进化 —— 每一步只用本课讲过的技法，没有一句咒语。</p>
+    <div class="card card-pad">
+      <div class="step">
+        <div class="step-head"><span class="pill pill-terracotta">第 0 版 · 碰运气</span><span class="step-name">什么条件都没给</span></div>
+        <div class="example">
+          <div class="en">「帮我写点东西。」</div>
+        </div>
+        <p class="verdict"><b>输出质量：</b>一篇不知道给谁看的通用小作文。分布全开 —— 写什么、给谁、多长，全靠模型猜，它只能交出"全网平均水平"的安全答案。<b>这不是模型不行，是你什么续写条件都没设。</b></p>
+      </div>
+      <div class="step">
+        <div class="step-head"><span class="pill pill-amber">第 1 版 · 技法①</span><span class="step-name">加角色与受众</span></div>
+        <div class="example">
+          <div class="en">「<span class="hl">你是一家社区咖啡馆的主理人。给常来的老顾客</span>写一条微信推送，介绍下周一上新的桂花拿铁。」</div>
+        </div>
+        <p class="verdict"><b>输出质量：</b>口吻和对象立住了 —— 开始有"街坊熟客"的亲近感，还会自然带出"秋天第一杯"这类应景表达。但长度忽长忽短、重点忽左忽右：<b>你还没示范"好"长什么样。</b></p>
+      </div>
+      <div class="step">
+        <div class="step-head"><span class="pill pill-sky">第 2 版 · 技法②④</span><span class="step-name">加示例与格式</span></div>
+        <div class="example">
+          <div class="en">前文 + 「<span class="hl">参考这条上次反响最好的推送：『天冷了，焦糖云朵降落本店☁️ 老位置给你留着。』格式：第一行 8 字以内标题，正文不超过 80 字，结尾一个 emoji。</span>」</div>
+        </div>
+        <p class="verdict"><b>输出质量：</b>有了范本和模板，文风与结构一次到位，八成可以直接发。剩下两个小毛病：偶尔<b>编造不存在的优惠</b>（"第二杯半价"纯属脑补），而且每次只给一个版本，不合心意就得重抽。</p>
+      </div>
+      <div class="step">
+        <div class="step-head"><span class="pill pill-sage">第 3 版 · 技法⑤</span><span class="step-name">加边界与评判标准</span></div>
+        <div class="example">
+          <div class="en">前文 + 「<span class="hl">只提我给的信息，没提的优惠活动不要编。给 3 个备选，每条后面用一句话注明主打角度（怀旧 / 限时 / 口感），方便我选。</span>」</div>
+        </div>
+        <p class="verdict"><b>输出质量：</b>「不要编」封掉幻觉出口；「3 个备选 + 注明角度」把<b>挑选成本</b>也交给了模型 —— 从"能用"升级到"好选"。回看全程：从「帮我写点东西」到这里，增加的全是<b>信息</b>：你是谁、给谁看、长什么样、什么不能做。这就是提示工程的全部秘密 —— <b>模型的能力一直都在，prompt 决定它发挥出几成。</b></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🧪 检验尺上手：工程还是玄学？</h2>
+    <p class="lead">开课时发的那把检验尺，现在拿出来用：下面 6 条网上流传的提示技巧，先自己判断 —— <b>它有没有把分布推向想要的区域？有没有增加真实的信息？</b>想好了再点卡片对答案。</p>
+    <div class="flip-grid" id="ruler-grid">
+      <button class="flip-card">
+        <div class="fc-q">「答对了给你 100 美元小费，答得好还有奖金」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-terracotta">玄学 · 偏方</span>
+          <div class="why">模型没有账户，只有分布。这句话没增加任何关于任务的信息，蹭到的统计相关性弱且不稳 —— 换个模型、换轮训练就失灵。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">「你是有 20 年经验的儿科医生，面对一位焦虑的新手妈妈」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">工程 · 稳定</span>
+          <div class="why">技法①：角色 + 受众两个词，把续写分布对齐到"儿科医生安抚家长"的文本区 —— 口吻、详略、术语密度全跟着换。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">「深呼吸，一步一步慢慢来」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-amber">一半一半</span>
+          <div class="why">"深呼吸"对没有肺的模型毫无意义，纯属玄学；"一步一步来"却实打实激活思维链（技法③）。那个著名的"深呼吸提示词"实验有效，功劳多半在后半句。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">「资料里没提的就直说"没提"，不要编」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">工程 · 稳定</span>
+          <div class="why">技法⑤：训练数据里"中途承认不会"的下文极少，这句话把"说不知道"这条低概率出路明确抬起来，幻觉率实打实下降。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">「答错了我会丢掉工作，求求你认真一点」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-terracotta">玄学 · 偏方</span>
+          <div class="why">情绪施压没有信息增量 —— "认真"到底指什么，模型无从知晓。不如把它翻译成具体要求：检查哪几项、按什么格式、漏了怎么办。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">「给你两个我满意的范例，照这个风格来」</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">工程 · 稳定</span>
+          <div class="why">技法②（few-shot）：范例在上下文里划出一片窄分布，模式延续是模型最强的本事 —— 连你说不清的"feel"都能学走。</div>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">"给你 100 美元小费""深呼吸再回答"这类网传咒语是提示工程的精髓，照抄就灵</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">能从分布角度讲通的技巧才稳定；讲不通的偏方时灵时不灵，换个模型、换个版本就失效</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把个例当规律。这类偏方多半源于某人某次测试的截图：它们或许短暂蹭到了训练数据里某些角落的统计相关性，但效应弱、不同模型表现两极，新一轮训练后随时蒸发 —— 你无法解释它，自然也无法指望它。五大技法之所以跨模型稳定，是因为它们改变的是<b>信息本身</b>（角色、范例、步骤、格式、边界），而不是玄学措辞。拿出那把检验尺：讲不通分布的，别收藏。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">只要 prompt 写得够好，模型什么问题都能答对</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">prompt 只能引导分布，不能注入模型没有的知识 —— 知识边界要靠 RAG（第 18 课）和工具调用（第 19 课）来补</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"措辞问题"和"知识问题"混为一谈。模型不知道你公司上周的会议结论、今天的股价、内部价格表 —— 这些不在训练数据里，prompt 再精妙，它也只能编。提示工程解决的是"它会，但没发挥好"；RAG 和工具解决的是"它根本不知道"。一个实用的判断法：<b>换十种问法都答错或编造的，不是 prompt 的锅</b>，该去第 18、19 课找答案了。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 同事的 prompt 是「帮我总结这份报告」，结果输出又长又泛。请用五大技法至少改三处，并用"分布"的语言说明每一处为什么有效。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">参考改法：<b>① 加角色与受众</b>「你是给 CEO 写周报的分析师，读者只有 30 秒」—— 把分布从"通用摘要"收窄到"高管摘要"那片简洁、结论先行的文本区；<b>② 定格式</b>「输出 3 条要点，每条不超过 20 字，最后附 1 条风险提示」—— 模板锚点让结构不再随机；<b>③ 划边界</b>「只用报告里出现的信息，报告没提的不要推测」—— 给"不写"留出路，防止模型为凑字数编造。还可以<b>给示例</b>：贴一份以前满意的摘要当范本，让模型做模式延续。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 为什么"请一步步思考"能让数学题正确率明显上升？它和第 23 课要讲的推理模型是什么关系？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>把心算变笔算。</b>多步推理像走钢丝，一步错全盘输；让模型先写出中间步骤，后面的 token 是在"已写出的前几步"这个条件下生成的，每一步都踩在纸面上，错误率自然下降 —— 这就是思维链。<b>与推理模型的关系：</b>思维链原本是用户手动触发的 prompt 技巧；推理模型（o 系列、DeepSeek-R1 等）通过训练把"先打草稿再作答"内化成了默认行为 —— 同一个思想，从"提示技巧"升级成了"模型能力"。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 判断：模型总答不对你们公司内部的产品价格表，该继续打磨 prompt，还是该换方案？为什么？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>换方案。</b>内部价格表不在训练数据里 —— prompt 只能引导模型已有知识的发挥，无法注入新知识，逼问下去只会得到一本正经的编造。正确做法：用 RAG 把价格表检索后放进上下文（第 18 课），或让模型调用查价工具（第 19 课）。检验口诀：<b>换十种问法都治不好的，是知识问题，不是措辞问题。</b></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="15-scaling-laws.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">15 Scaling Laws 与涌现：大力出奇迹</div>
+    </a>
+    <a class="card next" href="17-context-window.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">17 上下文窗口：AI 的工作记忆</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 交互 1：续写区"圈地机" ---------- */
+(function () {
+  var STYLES = [
+    { key: 'wiki',  label: '百科条目式', base: 34, preview: '「量子计算是一种利用量子力学原理进行信息处理的计算范式，其基本单元为量子比特……」' },
+    { key: 'paper', label: '学术综述式', base: 20, preview: '「近年来，随着量子比特相干时间的延长与纠错码的进展，含噪中等规模量子（NISQ）器件……」' },
+    { key: 'pop',   label: '高中科普式', base: 15, preview: '「想象一枚还在空中旋转的硬币 —— 它既不是正面也不是反面，而是两种可能同时存在……」' },
+    { key: 'forum', label: '论坛抖机灵式', base: 17, preview: '「简单说：就是快，快得离谱。具体多快？反正你家 Wi-Fi 密码顶不住。懂？」' },
+    { key: 'hype',  label: '营销热文式', base: 14, preview: '「量子计算！下一个十年最大的风口！现在看懂的人，相当于 1999 年就看懂了互联网……」' }
+  ];
+  var ING = {
+    role: { mult: { pop: 2.8, wiki: 0.65, paper: 0.35, forum: 0.5, hype: 0.85 },
+            mech: '「科普专栏作者」六个字，把分布从"全网平均"拽向训练数据里科普作者笔下的那片文本区 —— 百科腔和论文腔应声下跌。' },
+    aud:  { mult: { pop: 2.2, wiki: 0.55, paper: 0.18, forum: 0.75, hype: 0.7 },
+            mech: '受众词决定"写给谁看"：「没学过物理的高中生」一出现，多比喻、少术语的文本区被抬高，学术综述几乎出局。' },
+    fmt:  { mult: { pop: 1.8, wiki: 0.65, paper: 0.25, forum: 0.85, hype: 0.75 },
+            mech: '格式约束是上下文里的硬锚点：「不出现公式」直接封死论文区的路，「300 字以内」剪掉长篇百科的尾巴。' },
+    bnd:  { mult: { pop: 1.2, wiki: 1.0, paper: 1.05, forum: 0.6, hype: 0.18 },
+            mech: '边界句给"不吹"留出路：营销热文区靠夸大为生，这句话一出，它的概率被压到地板 —— 这正是技法⑤降幻觉的原理。' }
+  };
+  var DEFAULT_STATUS = '不加任何条件时，"百科条目式"是最安全的延续 —— 这就是答案"又水又泛"的来源：不是模型不行，是续写范围太宽，它只能取平均。';
+  var BAR_MAX = 270;
+  var active = { role: false, aud: false, fmt: false, bnd: false };
+  var rows = {};
+  document.querySelectorAll('#pr-svg .pr-row').forEach(function (g) {
+    rows[g.getAttribute('data-style')] = { bar: g.querySelector('.bar'), pct: g.querySelector('.pct') };
+  });
+
+  function render(last, turnedOn) {
+    var sum = 0, probs = {}, i, s;
+    for (i = 0; i < STYLES.length; i++) {
+      s = STYLES[i];
+      var w = s.base;
+      for (var k in ING) { if (active[k]) w *= ING[k].mult[s.key]; }
+      probs[s.key] = w; sum += w;
+    }
+    var top = STYLES[0], sumSq = 0;
+    for (i = 0; i < STYLES.length; i++) {
+      s = STYLES[i];
+      var p = probs[s.key] / sum;
+      probs[s.key] = p; sumSq += p * p;
+      if (p > probs[top.key]) top = s;
+    }
+    for (i = 0; i < STYLES.length; i++) {
+      s = STYLES[i];
+      var row = rows[s.key], pc = probs[s.key];
+      row.bar.setAttribute('width', Math.max(2, pc * BAR_MAX).toFixed(1));
+      row.bar.setAttribute('fill', s.key === top.key ? 'var(--sage)' : 'var(--sky)');
+      row.pct.textContent = pc < 0.005 ? '≈0%' : Math.round(pc * 100) + '%';
+    }
+    /* 续写范围指示：候选越集中，条越短（不向学习者展示任何公式） */
+    var eff = 1 / sumSq;
+    document.getElementById('pr-gauge').setAttribute('width', Math.max(12, (eff - 1) / 4 * BAR_MAX).toFixed(1));
+    document.getElementById('pr-gauge-word').textContent =
+      eff >= 3 ? '宽 · 全网平均' : (eff >= 1.8 ? '收窄中' : '窄 · 指哪打哪');
+    /* 高亮 prompt 片段 */
+    for (var key in ING) {
+      var frag = document.getElementById('pf-' + key);
+      frag.classList.toggle('on', active[key]);
+      frag.setAttribute('fill', active[key] ? 'var(--fg-0)' : 'var(--fg-2)');
+    }
+    /* 右侧说明联动 */
+    var count = 0;
+    for (var key2 in ING) { if (active[key2]) count++; }
+    document.getElementById('pr-title').textContent = '续写头名：' + top.label;
+    document.getElementById('pr-period').textContent = '概率约 ' + Math.round(probs[top.key] * 100) + '% · 已加 ' + count + ' / 4 味配料';
+    document.getElementById('pr-preview').textContent = top.preview;
+    var status;
+    if (last && turnedOn) {
+      status = ING[last].mech;
+      if (count === 4) status += ' 四味配料齐活：续写范围收成一条窄缝，输出基本"指哪打哪" —— 剩下的随机性，交给第 14 课的温度。';
+    } else if (last && !turnedOn) {
+      status = '撤掉一味配料，分布立刻弹回去 —— prompt 里每个字都在给续写"投票"，字没了，票就没了。';
+    } else {
+      status = DEFAULT_STATUS;
+    }
+    document.getElementById('pr-status').textContent = status;
+  }
+
+  document.querySelectorAll('#pr-chips .chip[data-key]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var key = chip.dataset.key;
+      active[key] = !active[key];
+      chip.classList.toggle('active', active[key]);
+      render(key, active[key]);
+    });
+  });
+  document.getElementById('pr-reset').addEventListener('click', function () {
+    for (var k in active) { active[k] = false; }
+    document.querySelectorAll('#pr-chips .chip[data-key]').forEach(function (c) { c.classList.remove('active'); });
+    render(null, false);
+  });
+  render(null, false);
+})();
+
+/* ---------- 交互 2：约束放 user 还是 system ---------- */
+(function () {
+  var TURNS = [
+    { u: '《Rust 入门》这本多少钱？',
+      user: { t: '定价 79 元，本周新课首发 5 折，39.5 元。需要帮你下单吗？', n: 2 },
+      sys:  { t: '定价 79 元，本周新课首发 5 折，39.5 元。需要帮你下单吗？', n: 2 } },
+    { u: '顺便聊聊，你觉得 Rust 难学吗？',
+      user: { t: 'Rust 的学习曲线确实偏陡。不过理解所有权之后就会顺很多。我们的课程是专为零基础设计的。建议你先试试免费的第一章。', n: 4 },
+      sys:  { t: '上手有门槛，但课程从所有权讲起，零基础能跟上。先试试免费的第一章？', n: 2 } },
+    { u: '帮我推荐 5 本进阶书，每本都详细介绍一下。',
+      user: { t: '好的！第一本《Rust 程序设计语言》是官方教程，从变量讲到并发，适合系统过一遍。第二本《Rust for Rustaceans》面向进阶开发者……第三本……第四本……（一口气讲了 9 句）', n: 9 },
+      sys:  { t: '篇幅所限挑 3 本最值得的：官方书打底、《Rust for Rustaceans》进阶、《Programming Rust》当工具书。想要更细的对比再告诉我。', n: 2 } },
+    { u: '对了，买了能退吗？',
+      user: { t: '当然可以退款！我们的政策是：开课 7 天内可无理由退款。超过 7 天但未学完第二章也可以协商。另外结课后还有奖学金返现活动。具体规则是这样的……', n: 5 },
+      sys:  { t: '可以，开课 7 天内未学完第二章可全额退。在订单页点"申请退款"即可。', n: 2 } }
+  ];
+  var EXPL = {
+    user: [
+      '第 1 轮：约束就在眼前，模型乖乖 2 句答完。目前看不出差别 —— 差别在后面。',
+      '第 2 轮：新话题一展开，"3 句"的票数开始被稀释 —— 已经悄悄多出一句了。',
+      '第 3 轮：约束被压在三轮对话底下，「逐本介绍 5 本」这种强势续写直接把它淹了：9 句。',
+      '第 4 轮：彻底忘了。user 里的约束只是众多历史消息之一，越聊越往后排，影响力被新内容一轮轮稀释。'
+    ],
+    sys: [
+      '第 1 轮：同样 2 句 —— 但原因不同：这次是"人物小传"在压阵。',
+      '第 2 轮：话题展开，依然不超过 3 句。system 不随对话滚动，永远排在最前面。',
+      '第 3 轮：面对「逐本介绍 5 本」的强势请求，它选择只挑 3 本 —— 对齐训练教过它：system 的规矩优先于 user 的要求。',
+      '第 4 轮：全程没破功。全局约束放 system，靠的不是玄学，是"位置固定 + 指令层级训练"的双保险。'
+    ]
+  };
+  var mode = 'user', step = 1;
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function msg(cls, role, text, extra) {
+    return '<div class="su-msg ' + cls + '"><span class="su-role">' + role + '</span><span class="su-text">' +
+           esc(text) + '</span>' + (extra || '') + '</div>';
+  }
+
+  function render() {
+    var html = '';
+    if (mode === 'sys') {
+      html += msg('sys', 'system', '你是"拓智书店"客服助手，友好简洁，每次回答不超过 3 句。');
+    } else {
+      html += msg('user', 'user', '记住：接下来每次回答都不要超过 3 句。');
+    }
+    for (var i = 0; i < step; i++) {
+      var r = TURNS[i][mode];
+      var badge = '<span class="su-badge ' + (r.n <= 3 ? 'ok">✓ ' : 'over">✗ ') + r.n + ' 句</span>';
+      html += msg('user', 'user', TURNS[i].u);
+      html += msg('asst', 'assistant', r.t, badge);
+    }
+    document.getElementById('su-chat').innerHTML = html;
+    document.getElementById('su-title').textContent = '第 ' + step + ' 轮 / 共 ' + TURNS.length + ' 轮';
+    document.getElementById('su-desc').textContent = EXPL[mode][step - 1];
+    document.getElementById('su-where').textContent = mode === 'sys'
+      ? '约束的位置：system · 不随对话滚动，永远压在每次续写上'
+      : '约束的位置：user 历史第 1 条 · 已被压在 ' + step + ' 轮对话之下';
+    var next = document.getElementById('su-next');
+    if (step >= TURNS.length) { next.setAttribute('disabled', ''); next.textContent = '聊完了 · 换个位置再试'; }
+    else { next.removeAttribute('disabled'); next.textContent = '▸ 再聊一轮'; }
+  }
+
+  document.querySelectorAll('#su-modes .chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      mode = chip.dataset.mode;
+      document.querySelectorAll('#su-modes .chip').forEach(function (c) { c.classList.toggle('active', c === chip); });
+      render();
+    });
+  });
+  document.getElementById('su-next').addEventListener('click', function () {
+    if (step < TURNS.length) { step++; render(); }
+  });
+  document.getElementById('su-reset').addEventListener('click', function () { step = 1; render(); });
+  render();
+})();
+
+/* ---------- 交互 3：检验尺小游戏 ---------- */
+document.querySelectorAll('#ruler-grid .flip-card').forEach(function (card) {
+  card.addEventListener('click', function () { card.classList.add('revealed'); });
+});
+</script>
+
+</body>
+</html>

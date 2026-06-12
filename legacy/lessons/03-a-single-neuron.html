@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 3 课 · 一个神经元的诞生：权重、偏置与激活 — 拓智</title>
+<meta name="description" content="神经网络的最小零件，其实只是一道"加权打分题"。亲手拖动权重滑块，看一个神经元如何做判断。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：神经元演示 ---------- */
+#neuron-svg text { font-family: inherit; }
+#neuron-svg .w-edge { transition: stroke-width 0.18s ease, stroke 0.18s ease, stroke-opacity 0.18s ease; }
+#neuron-svg .soft { transition: fill 0.22s ease, stroke 0.22s ease, fill-opacity 0.18s ease, opacity 0.25s ease; }
+.param-cap { font-size: 12px; font-weight: 600; color: var(--fg-2); letter-spacing: 0.05em; margin-top: 14px; margin-bottom: 2px; }
+.param-cap:first-child { margin-top: 0; }
+.neu-readout { margin-top: 14px; padding: 12px 16px; background: var(--bg-inset); border-radius: var(--r-md); font-size: 14px; font-variant-numeric: tabular-nums; }
+.neu-readout .ro-line { color: var(--fg-1); }
+.neu-readout .ro-line b { color: var(--fg-0); }
+.neu-verdict { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
+@media (prefers-reduced-motion: reduce) {
+  #neuron-svg * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第一阶段 · 直觉篇</span> / <span>第 3 课</span>
+    </div>
+    <h1>一个神经元的诞生：权重、偏置与激活</h1>
+    <p class="subhead">神经网络的最小零件，其实只是一道"加权打分题"。亲手拖动权重滑块，看一个神经元如何做判断。</p>
+    <div class="meta">
+      <span class="pill pill-ink">入门</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 20 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>把任何神经元看成一道"加权打分题"：每个因素乘上权重，加总过线就触发</div>
+      <div class="goal-item"><span class="tick">✓</span>分清三件套的分工：权重管"在乎什么"、偏置管"门槛多高"、激活函数管"压成决定"</div>
+      <div class="goal-item"><span class="tick">✓</span>看穿"神经网络模拟大脑"的说法 —— 那只是一次松散的命名致敬</div>
+      <div class="goal-item"><span class="tick">✓</span>亲手调过权重和偏置，提前领悟下一课的主题：训练 = 让机器自动调这些数字</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：神经元就是一道加权打分题</h2>
+    <p class="lead">你每天都在运行"神经元"。比如纠结要不要去跑步：天气好，加分；身体累，减分；而你对跑步这件事本来就有几分热情或抗拒，那是底分。心里把账一算，总分过了某条线，鞋一蹬就出门。人工神经元做的事一模一样 —— 接收几个数字，各乘一个权重加起来，再加一个偏置，最后问一句：<b>过线了吗？</b></p>
+    <div class="example">
+      <div class="en">跑步意愿 ＝ 天气 × <b>1.5</b> ＋ 疲劳 × <b>(−1.2)</b> ＋ 底分 <b>(−0.5)</b></div>
+      <div class="zh">天气的权重是 +1.5：很在乎，晴天加分多；疲劳的权重是 −1.2：负权重就是减分项；底分 −0.5 说明你对跑步并不上头。总分过线，今天就去。</div>
+    </div>
+    <div class="example">
+      <div class="en">z = w₁x₁ + w₂x₂ + b　→　y = σ(z)</div>
+      <div class="zh">整门深度学习的最小零件就这一行：输入 x 各乘权重 w 求和，加偏置 b 得到分数 z，再经激活函数 σ 压成最终输出 y。后面 27 课讲的一切，都是亿万份这行算式的排列组合。</div>
+    </div>
+    <div class="use-grid" style="margin-top: 14px;">
+      <div class="card use-card">
+        <div class="label">三件套 · 之一</div>
+        <div class="en">权重 <b>Weight</b></div>
+        <div class="zh">每个输入的<b>重要性</b>。正权重加分、负权重减分，绝对值越大影响越大。关键在于：权重不是人设定的，而是机器从数据里<b>学</b>出来的 —— 所谓"训练"，调的就是它。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">三件套 · 之二</div>
+        <div class="en">偏置 <b>Bias</b></div>
+        <div class="zh">不看任何输入的<b>底分</b>，决定门槛高低。偏置高，神经元轻易触发（风雨无阻去跑步）；偏置低，得攒够很多正分才触发（晴天限定）。门槛能高能低，决定才够灵活。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">三件套 · 之三</div>
+        <div class="en">激活函数 <b>Activation</b></div>
+        <div class="zh">把分数 z <b>压成决定</b>的最后一道工序。sigmoid 把任何分数压进 0~1，像一个"可能性"；ReLU 更干脆：负分一律归零，正分原样放行。没有它会怎样？往下看。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 名字借自大脑，本事全靠数学</h2>
+    <p class="lead">上世纪 40 年代，研究者观察到生物神经元"信号汇总、过阈值就放电"的行为，从中抽出了这道打分题。对照关系如下 —— 但请记住，这只是一次<b>松散的启发</b>，不是模拟。</p>
+    <div class="card" style="overflow: hidden;">
+      <table class="match">
+        <thead>
+          <tr><th>生物神经元</th><th>人工神经元</th><th>它干的事</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="be">树突</td><td class="be">输入 x</td><td class="ex">接收上游传来的信号</td></tr>
+          <tr><td class="be">突触强度</td><td class="be">权重 w</td><td class="ex">决定每路信号被放大还是削弱</td></tr>
+          <tr><td class="be">胞体</td><td class="be">加权求和 + 激活</td><td class="ex">把信号汇总，过了阈值才"放电"</td></tr>
+          <tr><td class="be">轴突</td><td class="be">输出 y</td><td class="ex">把结果传给下一个神经元</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote" style="margin-top: 10px;">⚠️ 真实神经元有化学递质、脉冲时序、上百种细胞类型，复杂程度完全不在一个量级。人工神经元只是借了个好名字的简单函数 —— 把它想成"硅基脑细胞"，是这门课要帮你摘掉的第一个滤镜。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🚦 为什么必须有激活函数</h2>
+    <p class="lead">三件套里最不起眼的激活函数，恰恰是整座大厦的承重墙。一组对照看明白：</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-terracotta">去掉激活函数</span></div>
+        <div class="big">叠一万层，<span class="gap">还是一条直线</span></div>
+        <p class="note">直线套直线还是直线：w₂(w₁x + b₁) + b₂ 整理一下，无非是另一条直线。层数再多，整个网络也只会画直线 —— 连"晴天但太累就不去"这种拐弯逻辑都表达不了。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">加上激活函数</span></div>
+        <div class="big">每一层都能<span class="hl">拐一个弯</span></div>
+        <p class="note">激活函数给直线注入"弯折"。一层拐一个弯，层层叠起来就能围出任意复杂的边界 —— 从认出一只猫到接住一句话。层层弯折如何叠出智能，第 6 课揭晓。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：亲手捏一个会做决定的神经元</h2>
+    <p class="lead">这个神经元只关心两件事：天气和疲劳。左图的连线就是权重 —— <b>绿色加分、红色减分、越粗越在乎</b>。拖动右侧滑块，试试两个实验：把"疲劳"的权重 w₂ 调到 0 会怎样？把偏置 b 拉到 +2 又会怎样？</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 今天要不要去跑步</span>
+        <span class="demo-hint">输出 &gt; 0.5 灯泡就亮</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="neuron-svg" viewBox="0 0 440 280" width="420" role="img" aria-label="一个人工神经元：两个输入经权重连线汇入求和节点，加上偏置，经过激活函数，点亮输出灯泡">
+            <!-- 权重边 -->
+            <line id="edge1" class="w-edge" x1="86" y1="92" x2="188" y2="138" stroke="var(--sage)" stroke-width="4" stroke-linecap="round"/>
+            <line id="edge2" class="w-edge" x1="86" y1="208" x2="188" y2="162" stroke="var(--terracotta)" stroke-width="4" stroke-linecap="round"/>
+            <text id="wlabel1" x="128" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sage)">w₁ = 1.5</text>
+            <text id="wlabel2" x="128" y="202" text-anchor="middle" font-size="12" font-weight="700" fill="var(--terracotta)">w₂ = −1.2</text>
+            <!-- 输入 1 -->
+            <text x="62" y="46" text-anchor="middle" font-size="12" fill="var(--fg-1)">☀️ 天气 x₁</text>
+            <circle id="in1" class="soft" cx="62" cy="86" r="24" fill="var(--sky)" fill-opacity="0.6" stroke="var(--sky)" stroke-width="1.5"/>
+            <text id="svg-x1" x="62" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">0.80</text>
+            <!-- 输入 2 -->
+            <circle id="in2" class="soft" cx="62" cy="214" r="24" fill="var(--sky)" fill-opacity="0.3" stroke="var(--sky)" stroke-width="1.5"/>
+            <text id="svg-x2" x="62" y="219" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">0.30</text>
+            <text x="62" y="262" text-anchor="middle" font-size="12" fill="var(--fg-1)">😪 疲劳 x₂</text>
+            <!-- 偏置 -->
+            <text id="svg-b" x="214" y="82" text-anchor="middle" font-size="12" font-weight="700" fill="var(--fg-1)">偏置 b = −0.5</text>
+            <line x1="214" y1="92" x2="214" y2="112" stroke="var(--fg-2)" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <polygon points="209,110 214,120 219,110" fill="var(--fg-2)"/>
+            <!-- 求和节点 -->
+            <circle cx="214" cy="150" r="28" fill="var(--bg-inset)" stroke="var(--hairline-strong)" stroke-width="1.5"/>
+            <text x="214" y="157" text-anchor="middle" font-size="19" font-weight="700" fill="var(--fg-0)">Σ</text>
+            <text x="214" y="196" text-anchor="middle" font-size="11" fill="var(--fg-2)">加权求和</text>
+            <text id="svg-z" x="214" y="213" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fg-0)">z = 0.34</text>
+            <!-- 求和 → 激活 -->
+            <line x1="242" y1="150" x2="274" y2="150" stroke="var(--fg-2)" stroke-width="1.5"/>
+            <polygon points="272,145 281,150 272,155" fill="var(--fg-2)"/>
+            <!-- 激活函数 -->
+            <rect x="284" y="124" width="52" height="52" rx="12" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
+            <path d="M 292 162 C 306 162, 306 138, 320 138" fill="none" stroke="var(--amber)" stroke-width="2.5" stroke-linecap="round"/>
+            <text x="310" y="194" text-anchor="middle" font-size="11" fill="var(--fg-2)">激活 σ</text>
+            <!-- 激活 → 输出 -->
+            <line x1="336" y1="150" x2="364" y2="150" stroke="var(--fg-2)" stroke-width="1.5"/>
+            <polygon points="360,145 369,150 360,155" fill="var(--fg-2)"/>
+            <!-- 输出灯泡 -->
+            <circle id="glow" class="soft" cx="398" cy="146" r="26" fill="var(--amber)" opacity="0.35"/>
+            <g id="rays" class="soft" stroke="var(--amber)" stroke-width="2.5" stroke-linecap="round" opacity="1">
+              <line x1="398" y1="121" x2="398" y2="112"/>
+              <line x1="380" y1="128" x2="373" y2="121"/>
+              <line x1="416" y1="128" x2="423" y2="121"/>
+              <line x1="421" y1="146" x2="430" y2="146"/>
+            </g>
+            <circle id="bulb" class="soft" cx="398" cy="146" r="17" fill="var(--amber)" stroke="var(--amber)" stroke-width="2"/>
+            <rect x="391" y="164" width="14" height="8" rx="2" fill="var(--fg-2)"/>
+            <text id="svg-y" x="398" y="196" text-anchor="middle" font-size="12" font-weight="700" fill="var(--fg-0)">σ(z) = 0.58</text>
+            <text id="svg-decision" x="398" y="214" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sage)">去跑步！</text>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="param-cap">输入 · 今天的客观情况</div>
+          <div class="slider-row">
+            <label for="s-x1">☀️ 天气好坏</label>
+            <input type="range" id="s-x1" min="0" max="1" step="0.05" value="0.8">
+            <span class="val" id="v-x1">0.80</span>
+          </div>
+          <div class="slider-row">
+            <label for="s-x2">😪 疲劳程度</label>
+            <input type="range" id="s-x2" min="0" max="1" step="0.05" value="0.3">
+            <span class="val" id="v-x2">0.30</span>
+          </div>
+          <div class="param-cap">参数 · 神经元的"性格"（训练学的就是这三个数）</div>
+          <div class="slider-row">
+            <label for="s-w1">权重 w₁</label>
+            <input type="range" id="s-w1" min="-2" max="2" step="0.1" value="1.5">
+            <span class="val" id="v-w1">1.5</span>
+          </div>
+          <div class="slider-row">
+            <label for="s-w2">权重 w₂</label>
+            <input type="range" id="s-w2" min="-2" max="2" step="0.1" value="-1.2">
+            <span class="val" id="v-w2">−1.2</span>
+          </div>
+          <div class="slider-row">
+            <label for="s-b">偏置 b</label>
+            <input type="range" id="s-b" min="-2" max="2" step="0.1" value="-0.5">
+            <span class="val" id="v-b">−0.5</span>
+          </div>
+          <div class="param-cap">一键换"性格"（只改参数，不改今天的天气）</div>
+          <div class="chips" id="neuron-presets">
+            <button class="chip active" data-preset="moody">爱晴怕累</button>
+            <button class="chip" data-preset="diehard">风雨无阻</button>
+            <button class="chip" data-preset="picky">晴天限定</button>
+          </div>
+          <div class="neu-readout">
+            <div class="ro-line">z = <span id="ro-expr">1.5×0.80 − 1.2×0.30 − 0.5</span> = <b id="ro-z">0.34</b></div>
+            <div class="ro-line">σ(z) = <b id="ro-y">0.58</b></div>
+            <div class="neu-verdict" id="ro-verdict"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">神经网络在模拟人类大脑</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">它只借了"汇总信号、过线触发"这点松散直觉，本质是纯数学函数</span></div>
+        </div>
+        <p class="why"><b>病因：</b>"神经网络""神经元"这些名字起得太成功，媒体配图又总爱放发光的大脑。实际上现代深度学习的进展靠的是数学和算力，几乎不参考脑科学的最新发现 —— 就像飞机受鸟启发，但不靠扑翅膀飞。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">一个神经元就已经有点智能了</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">单个神经元只能画一条分界直线，连"两个输入不同才触发"（异或）都学不会</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"能做决定"误当成"聪明"。你刚才在演示里看到的，只是一道小学算术题。智能不在零件里，而在亿万个零件的组织方式里 —— 一粒沙不是城堡，但亿万粒沙可以是。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 用"加权打分题"拆解一个新场景：深夜纠结要不要点外卖。说出至少两个输入、各自权重的正负，以及"偏置很高"对应什么样的人。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">参考：<b>饥饿程度是正权重输入</b>（越饿加分越多），<b>价格或罪恶感是负权重输入</b>（减分项）。偏置很高 = 不饿也想点的"外卖重度依赖型"—— 还没看任何输入，底分就快过线了。输入可以随意换，权重正负讲得通就算对。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 回到演示：把 w₂（疲劳的权重）调到 0，神经元的行为有什么变化？再把偏置 b 拉到 +2 呢？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">w₂ = 0 时，"疲劳"这路输入<b>彻底失效</b> —— 再怎么拖疲劳滑块，输出纹丝不动：权重为零等于完全不在乎。b = +2 时门槛极低，几乎什么天气都"去跑步"—— <b>偏置决定的是不看输入的基础倾向</b>。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 判断：把三个"没有激活函数"的神经元层层串联，能学会比一条直线更复杂的边界吗？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>不能。</b>线性函数套线性函数还是线性函数，三层串联等效于一层，画出来仍是一条直线。这正是激活函数不可省略的原因 —— 也是第 6 课"层层抽象"的起点。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="02-how-machines-learn.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">02 机器是怎么"学习"的：从写规则到喂数据</div>
+    </a>
+    <a class="card next" href="04-gradient-descent.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">04 训练就是下山：损失函数与梯度下降</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 神经元交互演示 ---------- */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const S = { x1: $('s-x1'), x2: $('s-x2'), w1: $('s-w1'), w2: $('s-w2'), b: $('s-b') };
+  const V = { x1: $('v-x1'), x2: $('v-x2'), w1: $('v-w1'), w2: $('v-w2'), b: $('v-b') };
+  const M = '−'; // 数学负号，比连字符更易读
+
+  const fmt1 = (v) => (v < 0 ? M + Math.abs(v).toFixed(1) : v.toFixed(1));
+  const fmt2 = (v) => (v < 0 ? M + Math.abs(v).toFixed(2) : v.toFixed(2));
+
+  function setEdge(edge, label, w, name) {
+    const c = w > 0 ? 'var(--sage)' : w < 0 ? 'var(--terracotta)' : 'var(--fg-2)';
+    edge.setAttribute('stroke', c);
+    edge.setAttribute('stroke-width', (1 + Math.abs(w) * 2.6).toFixed(2));
+    edge.setAttribute('stroke-opacity', Math.min(1, 0.45 + Math.abs(w) * 0.28).toFixed(2));
+    label.setAttribute('fill', c);
+    label.textContent = name + ' = ' + fmt1(w);
+  }
+
+  function update() {
+    const x1 = +S.x1.value, x2 = +S.x2.value;
+    const w1 = +S.w1.value, w2 = +S.w2.value, b = +S.b.value;
+    const z = w1 * x1 + w2 * x2 + b;
+    const y = 1 / (1 + Math.exp(-z));
+    const go = y > 0.5;
+
+    V.x1.textContent = x1.toFixed(2); V.x2.textContent = x2.toFixed(2);
+    V.w1.textContent = fmt1(w1); V.w2.textContent = fmt1(w2); V.b.textContent = fmt1(b);
+
+    $('svg-x1').textContent = x1.toFixed(2);
+    $('svg-x2').textContent = x2.toFixed(2);
+    $('in1').setAttribute('fill-opacity', (0.15 + 0.55 * x1).toFixed(2));
+    $('in2').setAttribute('fill-opacity', (0.15 + 0.55 * x2).toFixed(2));
+    setEdge($('edge1'), $('wlabel1'), w1, 'w₁');
+    setEdge($('edge2'), $('wlabel2'), w2, 'w₂');
+    $('svg-b').textContent = '偏置 b = ' + fmt1(b);
+    $('svg-z').textContent = 'z = ' + fmt2(z);
+    $('svg-y').textContent = 'σ(z) = ' + y.toFixed(2);
+
+    $('glow').setAttribute('opacity', go ? '0.35' : '0');
+    $('rays').setAttribute('opacity', go ? '1' : '0');
+    const bulb = $('bulb');
+    bulb.setAttribute('fill', go ? 'var(--amber)' : 'var(--bg-inset)');
+    bulb.setAttribute('stroke', go ? 'var(--amber)' : 'var(--fg-2)');
+    const dec = $('svg-decision');
+    dec.textContent = go ? '去跑步！' : '在家休息';
+    dec.setAttribute('fill', go ? 'var(--sage)' : 'var(--fg-2)');
+
+    $('ro-expr').textContent =
+      fmt1(w1) + '×' + x1.toFixed(2) +
+      (w2 < 0 ? ' ' + M + ' ' : ' + ') + Math.abs(w2).toFixed(1) + '×' + x2.toFixed(2) +
+      (b < 0 ? ' ' + M + ' ' : ' + ') + Math.abs(b).toFixed(1);
+    $('ro-z').textContent = fmt2(z);
+    $('ro-y').textContent = y.toFixed(2);
+    $('ro-verdict').innerHTML = go
+      ? '<span class="pill pill-sage">🏃 灯亮 · 去跑步！</span><span>输出 ' + y.toFixed(2) + ' &gt; 0.5</span>'
+      : '<span class="pill pill-ink">🛋️ 灯灭 · 在家休息</span><span>输出 ' + y.toFixed(2) + ' ≤ 0.5</span>';
+  }
+
+  /* 三种"性格"预设：只改参数（权重 + 偏置），输入留给用户 */
+  const PRESETS = {
+    moody:   { w1: 1.5, w2: -1.2, b: -0.5 },  // 爱晴怕累：默认
+    diehard: { w1: 0.2, w2: -0.3, b: 1.5 },   // 风雨无阻：底分极高，输入几乎无所谓
+    picky:   { w1: 1.5, w2: -2.0, b: -0.8 },  // 晴天限定：门槛高，疲劳一票否决
+  };
+  const chips = document.querySelectorAll('#neuron-presets .chip');
+  chips.forEach((c) => c.addEventListener('click', () => {
+    const p = PRESETS[c.dataset.preset];
+    S.w1.value = p.w1; S.w2.value = p.w2; S.b.value = p.b;
+    chips.forEach((k) => k.classList.toggle('active', k === c));
+    update();
+  }));
+  ['w1', 'w2', 'b'].forEach((k) =>
+    S[k].addEventListener('input', () => chips.forEach((c) => c.classList.remove('active'))));
+  Object.values(S).forEach((s) => s.addEventListener('input', update));
+  update();
+})();
+</script>
+
+</body>
+</html>

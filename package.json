@@ -1,0 +1,23 @@
+{
+  "name": "learn-x",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "拓智 · AI Path — 为中文学习者设计的 AI 入门课（React 架构）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "recharts": "^2.13.3",
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

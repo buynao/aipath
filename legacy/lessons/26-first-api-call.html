@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 26 课 · 第一次调用 API：30 行代码的聊天机器人 — 拓智</title>
+<meta name="description" content="申请 key、发出第一个请求、读懂流式输出 —— 你和 AI 应用开发者之间，只隔着 30 行代码。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：代码块 ---------- */
+pre.code {
+  margin: 0; padding: 16px 20px; overflow-x: auto;
+  background: var(--bg-inset); border: 1px solid var(--hairline); border-radius: var(--r-md);
+  font-size: 13px; line-height: 1.85;
+}
+pre.code code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; color: var(--fg-0); }
+pre.code .cm { color: var(--fg-2); }
+pre.code .str { color: var(--sage); }
+.demo pre.code { border: none; border-radius: 0; }
+
+/* 逐段拆解 */
+.seg { margin-top: 32px; }
+.seg h3 { font-size: 17px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.seg .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.seg p { font-size: 15px; color: var(--fg-1); margin-top: 10px; }
+.seg p b, .lsec > p b { color: var(--fg-0); }
+.lsec > p { font-size: 15px; color: var(--fg-1); margin-top: 12px; }
+
+/* 终端模拟（流式演示） */
+.demo-pad { padding: 18px 22px; }
+.term-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.term-label { font-size: 12px; font-weight: 600; color: var(--fg-2); margin-bottom: 6px; }
+.term { min-height: 120px; padding: 12px 14px; background: var(--bg-inset); border: 1px solid var(--hairline); border-radius: var(--r-md); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.75; color: var(--fg-0); white-space: pre-wrap; }
+.term-stat { font-size: 12px; color: var(--fg-2); margin-top: 6px; min-height: 18px; }
+.term-stat b { color: var(--fg-0); }
+
+/* 算钱演示 */
+.formula { padding: 14px 20px; font-size: 15px; font-weight: 600; text-align: center; }
+.cost-stats { font-size: 14px; margin-top: 14px; }
+.cost-stats > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px dashed var(--hairline); }
+.cost-stats b { font-variant-numeric: tabular-nums; }
+
+/* 记忆演示 */
+#mem-svg .pulse { animation: memPulse 0.7s ease; }
+@keyframes memPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+@media (prefers-reduced-motion: reduce) { #mem-svg .pulse { animation: none; } }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.stat-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+
+@media (max-width: 700px) { .term-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第六阶段 · 实战篇</span> / <span>第 26 课</span>
+    </div>
+    <h1>第一次调用 API：30 行代码的聊天机器人</h1>
+    <p class="subhead">申请 key、发出第一个请求、读懂流式输出 —— 你和"AI 应用开发者"之间，只隔着 30 行代码。</p>
+    <div class="meta">
+      <span class="pill pill-ink">基础</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span>
+      <span class="footnote">约 25 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>跑通人生第一次大模型 API 调用：装 SDK、配 key、发请求、收回复</div>
+      <div class="goal-item"><span class="tick">✓</span>读懂 model / messages / role 三个核心参数，看穿"多轮记忆"其实是你代码里的一个 list</div>
+      <div class="goal-item"><span class="tick">✓</span>会用流式输出，并能粗算一次对话大概花多少钱</div>
+      <div class="goal-item"><span class="tick">✓</span>记牢 API key 的三条安全底线，避开新手最贵的翻车现场</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：所谓"做 AI 应用"，本质是发一个 HTTP 请求</h2>
+    <p class="lead">前 25 课你看着别人造模型：万亿 token 预训练（第 12 课）、RLHF 对齐（第 13 课）、烧掉的电够一座城用。好消息是：那都是<b>造模型的人</b>的事。<b>用模型的人</b>只需要会一件事 —— 把一段文字发给云端，把生成的文字收回来。整件事，30 行 Python 写完。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">想象中</span></div>
+        <div class="big">做 AI 应用 <span class="gap">=</span> 读论文、买显卡、训练模型</div>
+        <p class="note">那是第 12、13 课"造模型"的剧情 —— 烧的是大厂的钱，暂时轮不到你操心。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">实际上</span></div>
+        <div class="big">做 AI 应用 <span class="gap">=</span> <span class="hl">发一个 HTTP 请求，拿回一段文字</span></div>
+        <p class="note">模型早已训练好、部署好，按 token 出租。你要做的只是"点菜"。</p>
+      </div>
+    </div>
+    <p>先把完整代码端上来 —— 一个能在终端里持续对话的聊天机器人。看不懂没关系，下一节逐段拆：</p>
+    <div class="card demo" style="margin-top: 14px;">
+      <div class="demo-head">
+        <span class="demo-title">📄 chat.py · 完整可运行（约 30 行）</span>
+        <span class="demo-hint">注释里的 ①–⑤ 对应下一节的五个段落</span>
+      </div>
+      <pre class="code"><code>import os
+from openai import OpenAI                <span class="cm"># ① 先 pip install openai</span>
+
+client = OpenAI(
+    api_key=os.environ[<span class="str">"API_KEY"</span>],       <span class="cm"># ① key 读自环境变量，绝不写死在代码里</span>
+    <span class="cm"># base_url="https://…/v1",           # 想连别家模型？通常改这行 + key 即可</span>
+)
+
+messages = [                             <span class="cm"># ③ 对话历史，从"人物小传"开始</span>
+    {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"你是一位耐心的中文 AI 助教，回答简洁。"</span>}
+]
+
+print(<span class="str">"开始聊天吧（输入 quit 退出）"</span>)
+while True:                              <span class="cm"># ④ 多轮对话 = 一个循环 + 一个 list</span>
+    user_input = input(<span class="str">"\n你："</span>)
+    if user_input.strip() == <span class="str">"quit"</span>:
+        break
+    messages.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})
+
+    stream = client.chat.completions.create(
+        model=<span class="str">"gpt-4o-mini"</span>,             <span class="cm"># ② 用哪个模型，写名字就行</span>
+        messages=messages,               <span class="cm"># ④ 注意：每轮都发"全部"历史</span>
+        stream=True,                     <span class="cm"># ⑤ 流式：边生成边返回</span>
+    )
+
+    reply = <span class="str">""</span>
+    print(<span class="str">"AI："</span>, end=<span class="str">""</span>)
+    for chunk in stream:                 <span class="cm"># ⑤ 一小块一小块地收</span>
+        piece = chunk.choices[0].delta.content or <span class="str">""</span>
+        print(piece, end=<span class="str">""</span>, flush=True)
+        reply += piece
+
+    messages.append({<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: reply})  <span class="cm"># ④ 回复也存进历史</span>
+    print()</code></pre>
+    </div>
+    <p class="footnote" style="margin-top: 10px;">本课用 Python + OpenAI 兼容风格的 SDK 演示。Anthropic 等各家官方 SDK 形态大同小异（都是"建客户端 → 传 model 和 messages → 收回复"）；DeepSeek、Qwen、Kimi 等很多国产模型直接兼容这套接口 —— 改 base_url 和 key 就能连。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🔍 逐段拆解：30 行代码，5 个段落</h2>
+    <p class="lead">每一段先上代码，再说人话。读完这节，上面那 30 行对你就没有秘密了。</p>
+
+    <div class="seg">
+      <h3><span class="num">①</span>装 SDK，把 key 藏进环境变量</h3>
+      <pre class="code"><code><span class="cm"># 终端里执行：</span>
+pip install openai                       <span class="cm"># 装官方 SDK，一行搞定</span>
+
+<span class="cm"># macOS / Linux：把 key 存进环境变量（仅当前终端生效）</span>
+export API_KEY=<span class="str">"sk-…你的密钥…"</span>
+<span class="cm"># Windows PowerShell 写法：$env:API_KEY = "sk-…"</span></code></pre>
+      <p>先去模型厂商的开发者控制台注册、生成一个 <b>API key</b> —— 一串通常以 sk- 开头的长字符串。它同时是你的<b>身份证</b>和<b>银行卡</b>：服务器靠它认出你是谁，也靠它从你账户里扣费。所以第一条纪律现在就立下：<b>key 只放环境变量（或密钥管理服务），永远不写进代码</b>。代码里那句 <code>os.environ["API_KEY"]</code> 就是"运行时再去环境里取"的意思 —— 代码可以发给任何人看，key 不行。</p>
+    </div>
+
+    <div class="seg">
+      <h3><span class="num">②</span>发起一次对话请求：model 和 messages</h3>
+      <pre class="code"><code>resp = client.chat.completions.create(
+    model=<span class="str">"gpt-4o-mini"</span>,                <span class="cm"># 点哪道"菜"：模型名（能力、价格各不同）</span>
+    messages=[
+        {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"用一句话解释 token 是什么"</span>}
+    ],
+)
+print(resp.choices[0].message.content)   <span class="cm"># 模型的回复藏在这里</span></code></pre>
+      <p>剥掉 SDK 的糖衣，这就是一个 <b>HTTPS POST 请求</b>：把一段 JSON 发到厂商的服务器，几秒后收到一段 JSON 回复，SDK 只是帮你拼参数、拆响应。必填的只有两个：<b>model</b> 是菜单上的菜名 —— 各家型号能力和价格差几十倍（第 25 课的版图派上用场了）；<b>messages</b> 是对话内容，一个列表。回复套在 <code>choices[0].message.content</code> 里，看着绕，背下来就行。</p>
+    </div>
+
+    <div class="seg">
+      <h3><span class="num">③</span>messages 与三种 role：一场三人剧本</h3>
+      <pre class="code"><code>messages = [
+    {<span class="str">"role"</span>: <span class="str">"system"</span>,    <span class="str">"content"</span>: <span class="str">"你是一位毒舌影评人，嘴狠但在理。"</span>},
+    {<span class="str">"role"</span>: <span class="str">"user"</span>,      <span class="str">"content"</span>: <span class="str">"《流浪地球》好看吗？"</span>},
+    {<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: <span class="str">"特效在线。剧本嘛……我们还是聊特效吧。"</span>},
+    {<span class="str">"role"</span>: <span class="str">"user"</span>,      <span class="str">"content"</span>: <span class="str">"那第二部呢？"</span>},
+]</code></pre>
+      <p>messages 里每条消息都标着 role —— 谁在说话：</p>
+      <div class="card" style="margin-top: 12px;">
+        <table class="match">
+          <thead><tr><th>role</th><th>谁在说话</th><th>拿来干什么</th></tr></thead>
+          <tbody>
+            <tr><td class="be">system</td><td>导演</td><td class="ex">给模型的"人物小传"：身份、语气、规矩。第 16 课的提示工程，主战场就在这一条。</td></tr>
+            <tr><td class="be">user</td><td>用户</td><td class="ex">你（或你的用户）每一轮说的话。</td></tr>
+            <tr><td class="be">assistant</td><td>模型</td><td class="ex">模型以前的回复。注意：多轮对话时，是<b>你的代码</b>把它塞回列表里的。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="seg">
+      <h3><span class="num">④</span>多轮对话的真相：自己维护 list，每轮全量重发</h3>
+      <pre class="code"><code>messages.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})       <span class="cm"># 你说的，存进去</span>
+stream = client.chat.completions.create(
+    model=<span class="str">"gpt-4o-mini"</span>, messages=messages)                  <span class="cm"># 整个列表全量重发！</span>
+messages.append({<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: reply})    <span class="cm"># 它说的，也存进去</span></code></pre>
+      <p>第 17 课埋的伏笔在这里兑现：<b>API 服务器完全无状态</b> —— 每个请求都是孤立的，处理完即忘，它连"上一轮"这个概念都没有。想"接着聊"，唯一的办法是你自己维护 messages 列表，<b>每一轮把全部历史原封不动重发一遍</b>。两个直接推论：一，越聊越贵（历史越长，输入 token 越多）；二，把历史从 list 里删掉，它就当场"失忆"。这两件事，下面的交互演示都能亲手验证。</p>
+    </div>
+
+    <div class="seg">
+      <h3><span class="num">⑤</span>流式输出：体感快的秘密</h3>
+      <pre class="code"><code>stream = client.chat.completions.create(
+    model=<span class="str">"gpt-4o-mini"</span>, messages=messages,
+    stream=True,                         <span class="cm"># 打开流式开关</span>
+)
+for chunk in stream:                     <span class="cm"># 每个 chunk 带着刚生成的几个字</span>
+    print(chunk.choices[0].delta.content or <span class="str">""</span>, end=<span class="str">""</span>, flush=True)</code></pre>
+      <p>第 10 课讲过：模型本来就是<b>一个 token 一个 token</b> 往外吐的。非流式 = 等它全部吐完，打包发给你；流式 = 吐一点立刻推一点。<b>总耗时几乎一样，但"第一个字出现的时间"天差地别</b> —— ChatGPT 的打字机效果不是装酷，是体验刚需。眼见为实：</p>
+      <div class="card demo" style="margin-top: 14px;">
+        <div class="demo-head">
+          <span class="demo-title">🎛️ 小演示 · 流式 vs 非流式</span>
+          <span class="demo-hint">同一个回答，两种返回方式，同时发出</span>
+        </div>
+        <div class="demo-pad">
+          <div class="term-grid">
+            <div>
+              <div class="term-label">stream=True · 边生成边发</div>
+              <div class="term" id="term-s"></div>
+              <div class="term-stat" id="stat-s"></div>
+            </div>
+            <div>
+              <div class="term-label">stream=False · 生成完再发</div>
+              <div class="term" id="term-n"></div>
+              <div class="term-stat" id="stat-n"></div>
+            </div>
+          </div>
+          <div class="chips" style="margin-top: 14px;">
+            <button class="chip" id="btn-stream">▶ 同时发出两个请求</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💸 价格直觉，外加三条保命规则</h2>
+    <p class="lead">第一次绑卡充值前，先建立数量级直觉。账单只看两个数：<b>你发进去多少 token，它新生成多少 token</b>（第 11 课说过，token 是大模型世界的计量单位）。本课唯一的式子：</p>
+    <div class="card formula">费用 ＝ 输入 token 数 × 输入单价 ＋ 输出 token 数 × 输出单价</div>
+    <p><b>输入</b>指你发出的整个 messages —— 含 system 和全部历史，这就是"越聊越贵"的根源；<b>输出</b>指模型新生成的内容，单价通常比输入贵几倍。单价按"每百万 token"标价，<b>随时在变，以官网为准</b>。拿一组数量级示例算一笔：设输入 ¥2 / 百万 token、输出 ¥8 / 百万 token，一次普通问答（输入 500 + 输出 300 token）≈ 500×¥0.000002 ＋ 300×¥0.000008 ≈ <b>¥0.003，三厘钱</b>。结论：单次对话通常不到几分钱 —— 但别急着放心，拖拖下面的滑块：</p>
+    <div class="card demo" style="margin-top: 16px;">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 算一算 · 聊到第几轮，一共花多少钱？</span>
+        <span class="demo-hint">费率与 token 数均为数量级示例，以官网为准</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="cost-svg" viewBox="0 0 380 200" width="380" aria-label="柱状图：每一轮要重发的输入 token 随轮数线性增长"></svg>
+        </div>
+        <div class="demo-side">
+          <div class="slider-row">
+            <label for="cost-rounds">对话轮数</label>
+            <input type="range" id="cost-rounds" min="1" max="30" value="8">
+            <span class="val" id="cost-rounds-val">8</span>
+          </div>
+          <p style="font-size: 13px;">假设每轮你说约 200 token、AI 答约 200 token；费率取上文示例值。</p>
+          <div class="cost-stats">
+            <div><span>这一轮要重发的输入</span><b id="cost-round-tok">—</b></div>
+            <div><span>累计消耗 token</span><b id="cost-cum-tok">—</b></div>
+            <div><span>累计估算费用</span><b id="cost-cum-fee">—</b></div>
+          </div>
+          <p style="font-size: 13px;" id="cost-note"></p>
+        </div>
+      </div>
+    </div>
+    <p>看到柱子的形状了吗？因为全量重发，<b>每一轮的开销都比上一轮高</b>。即便如此，人对人聊天 30 轮也才几毛钱。真正烧钱的是第 20 课的 <b>Agent 循环</b>：一次任务自己跑几十轮，每轮还塞进大段工具结果和文档 —— 消耗直接跳一到两个数量级。写循环调 API 之前，先在控制台设好<b>用量上限</b>。</p>
+    <p style="margin-top: 20px;"><b>然后是三条保命规则。</b>每年都有新手把 key 写进代码传上 GitHub，几分钟内被扫 key 爬虫捡走，醒来收到一张天价账单 —— 别做下一个：</p>
+    <div class="use-grid" style="margin-top: 14px;">
+      <div class="card use-card">
+        <div class="label">规则一</div>
+        <div class="en">key <b>不进代码仓库</b></div>
+        <div class="zh">环境变量或密钥管理服务才是 key 的家。一旦 push 到公开仓库，就当它已经泄露 —— 扫 key 的爬虫比你的同事先看到。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">规则二</div>
+        <div class="en">key <b>不进前端页面</b></div>
+        <div class="zh">网页、小程序里的代码人人可看。正确姿势：前端只跟你自己的后端说话，由后端拿着 key 代发请求。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">规则三</div>
+        <div class="en">泄露<b>立刻吊销重发</b></div>
+        <div class="zh">别抱侥幸。控制台里一键吊销旧 key、生成新 key，再检查账单 —— 处理流程对标"银行卡密码泄露"。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：亲手戳破"记忆"的幻觉</h2>
+    <p class="lead">第 ④ 段说"记忆只是你代码里的 list"，现在亲手验证。左边是你代码里的 messages 列表，右边是云端模型。<b>推进三轮对话，在第 3 轮之前试试那把剪刀</b> —— 看看删掉 list 里的历史后，模型还"记得"你吗。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · messages 列表与"失忆"实验</span>
+        <span class="demo-hint">点「发送下一轮」推进剧情；第 3 轮前可以动剪刀</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="mem-svg" viewBox="0 0 400 290" width="400" aria-label="左侧为代码中的 messages 列表，右侧为无状态的云端模型，每轮请求全量重发列表">
+            <text x="14" y="20" font-size="11" font-weight="600" fill="var(--fg-2)">你的代码里：messages = [ … ]</text>
+            <g id="mem-list"></g>
+            <g id="mem-arrows">
+              <path d="M 206 112 L 252 112" stroke="var(--fg-2)" stroke-width="1.5" fill="none"/>
+              <path d="M 252 112 l -7 -4 v 8 z" fill="var(--fg-2)"/>
+              <text x="229" y="102" text-anchor="middle" font-size="9" font-weight="600" fill="var(--fg-1)">全量重发</text>
+              <path d="M 252 156 L 206 156" stroke="var(--fg-2)" stroke-width="1.5" fill="none" stroke-dasharray="3 3"/>
+              <path d="M 206 156 l 7 -4 v 8 z" fill="var(--fg-2)"/>
+              <text x="229" y="172" text-anchor="middle" font-size="9" fill="var(--fg-2)">新回复</text>
+            </g>
+            <rect x="258" y="94" width="130" height="84" rx="12" fill="var(--glass)" stroke="var(--hairline-strong)"/>
+            <text x="323" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">☁️ 云端模型</text>
+            <text x="323" y="146" text-anchor="middle" font-size="10" fill="var(--fg-2)">无状态 · 处理完即忘</text>
+            <text x="323" y="162" text-anchor="middle" font-size="10" fill="var(--fg-2)">什么都不存</text>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips">
+            <button class="chip" id="mem-send">▸ 发送下一轮</button>
+            <button class="chip" id="mem-cut" disabled>✂️ 砍掉历史</button>
+            <button class="chip" id="mem-reset">↺ 重置</button>
+          </div>
+          <h4 id="mem-title" style="margin-top: 14px;"></h4>
+          <p id="mem-desc"></p>
+          <div class="stat-pills" id="mem-stats"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">调 API 就等于把我的数据送去训练模型了</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">主流厂商的 API 数据默认不用于训练 —— 但各家政策不同，务必读数据条款</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"免费聊天产品"和"API"混为一谈。面向消费者的免费产品，有的确实会用对话改进模型（通常可关闭）；而 API 走的是商用条款，主流厂商默认不拿请求数据训练。涉及公司机密或用户隐私时，别靠印象 —— 打开数据政策逐条核对，必要时签企业协议。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">代码在我电脑上跑，所以模型也在我电脑上跑</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">推理发生在云端 GPU 集群，你的 30 行代码只是发了一个 HTTP 请求</span></div>
+        </div>
+        <p class="why"><b>病因：</b>回复打印在自己的终端里，造成"计算就在本地"的错觉。其实你的代码是"点菜"，做菜的是厂商机房里成排的 GPU —— 这也是断网就用不了、每次调用都花钱的原因。想让模型真正在自己电脑上跑？这正是下一课的主题。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <p class="lead">三个改造方向，每个都只动一两行代码 —— 但各自回收一节前面的课。</p>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 把 chat.py 第 11 行的 system 内容改成"毒舌影评人"，再聊几句电影。观察什么变了、什么没变？</div>
+        <details>
+          <summary>查看提示与答案</summary>
+          <div class="ans">比如改成 <b>"你是一位毒舌影评人，嘴狠但在理，拒绝商业互吹。"</b> 你会发现整场对话的人设、语气全变了，而你每轮的提问方式完全不用改 —— 这就是 system 作为"人物小传"的威力（第 16 课）：写一次，管全场，不必每轮重复。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 在 create() 里加 temperature 参数，分别用 0.2 和 1.2，把同一个问题各问 5 次。预测一下两组答案的差别？</div>
+        <details>
+          <summary>查看提示与答案</summary>
+          <div class="ans"><b>低温（0.2）：5 次答案几乎一模一样</b>，稳定、保守，适合查事实、写代码；<b>高温（1.2）：5 次五花八门</b>，适合头脑风暴。原理是第 14 课的采样温度 —— 温度只改变"抽签"的胆量。注意各家参数取值范围和默认值略有差异，以文档为准。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 在发送前加一行 messages = [messages[0], messages[-1]]（只留 system 和你最新一句），它会怎样？</div>
+        <details>
+          <summary>查看提示与答案</summary>
+          <div class="ans">它会<b>当场"失忆"</b>：之前聊过的名字、话题全部不认账 —— 因为对模型来说，没被发来的消息从未存在过。这验证了第 17 课：模型无状态，"记忆"全在你代码的 list 里。顺带这也是最朴素的省 token 手段；正经做法叫"上下文管理"：保留 system + 摘要 + 最近几轮。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="25-open-vs-closed.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">25 开源与闭源：大模型版图</div>
+    </a>
+    <a class="card next" href="27-local-llms.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">27 本地跑大模型：Ollama 与量化</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, text) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+/* ---------- 演示一：流式 vs 非流式 ---------- */
+(function () {
+  const FULL = '「token」是模型读写文字的最小单位。它不是想好整句话再说，而是一个 token 一个 token 地往外吐 —— 流式输出只是把这个过程原样直播给你。';
+  const termS = document.getElementById('term-s');
+  const termN = document.getElementById('term-n');
+  const statS = document.getElementById('stat-s');
+  const statN = document.getElementById('stat-n');
+  const btn = document.getElementById('btn-stream');
+  const chars = Array.from(FULL);
+  const STEP = 38, DELAY = 300;
+  const TOTAL = DELAY + chars.length * STEP;
+  let timers = [], dotTimer = null;
+
+  function clearAll() {
+    timers.forEach(clearTimeout); timers = [];
+    if (dotTimer) { clearInterval(dotTimer); dotTimer = null; }
+  }
+  function finalState() {
+    termS.textContent = FULL;
+    termN.textContent = FULL;
+    statS.innerHTML = '首字出现：<b>约 0.3 秒</b> · 全文完成：约 ' + (TOTAL / 1000).toFixed(1) + ' 秒';
+    statN.innerHTML = '首字出现：<b>约 ' + (TOTAL / 1000).toFixed(1) + ' 秒</b> —— 全文一次到齐，前面全在干等';
+    btn.textContent = '↻ 再放一遍';
+  }
+  function play() {
+    clearAll();
+    if (REDUCED) { finalState(); return; }
+    btn.disabled = true;
+    termS.textContent = '';
+    termN.textContent = '⏳ 等待响应';
+    statS.textContent = '请求已发出…';
+    statN.textContent = '请求已发出…';
+    chars.forEach((ch, i) => {
+      timers.push(setTimeout(() => {
+        termS.textContent += ch;
+        if (i === 0) statS.innerHTML = '首字出现：<b>0.3 秒</b> ✓ 已经在读了';
+      }, DELAY + i * STEP));
+    });
+    let dots = 0;
+    dotTimer = setInterval(() => {
+      dots = (dots + 1) % 4;
+      termN.textContent = '⏳ 等待响应' + '.'.repeat(dots);
+    }, 350);
+    timers.push(setTimeout(() => {
+      clearInterval(dotTimer); dotTimer = null;
+      finalState();
+      btn.disabled = false;
+    }, TOTAL + 60));
+  }
+  btn.addEventListener('click', play);
+  if (REDUCED) { finalState(); }
+  else {
+    termS.textContent = '（等待发送…）';
+    termN.textContent = '（等待发送…）';
+  }
+})();
+
+/* ---------- 演示二：算钱滑块 ---------- */
+(function () {
+  const IN_PRICE = 2 / 1e6, OUT_PRICE = 8 / 1e6; // ¥/token，数量级示例
+  const SYS = 50, U = 200, A = 200;
+  const MAX_N = 30;
+  function inTok(k) { return SYS + (k - 1) * (U + A) + U; }
+
+  const svg = document.getElementById('cost-svg');
+  const slider = document.getElementById('cost-rounds');
+  const valEl = document.getElementById('cost-rounds-val');
+  const maxTok = inTok(MAX_N);
+  const bars = [];
+
+  svg.appendChild(svgEl('line', { x1: 12, y1: 152, x2: 372, y2: 152, stroke: 'var(--hairline-strong)', 'stroke-width': 1 }));
+  for (let k = 1; k <= MAX_N; k++) {
+    const h = Math.max(4, inTok(k) / maxTok * 132);
+    const bar = svgEl('rect', {
+      x: 14 + (k - 1) * 12, y: 152 - h, width: 9, height: h, rx: 2,
+      fill: 'var(--hairline)'
+    });
+    bar.appendChild(svgEl('title', {}, '第 ' + k + ' 轮：要重发约 ' + inTok(k) + ' token'));
+    svg.appendChild(bar);
+    bars.push(bar);
+  }
+  svg.appendChild(svgEl('text', { x: 14, y: 168, 'font-size': 9, fill: 'var(--fg-2)' }, '第 1 轮'));
+  svg.appendChild(svgEl('text', { x: 372, y: 168, 'font-size': 9, 'text-anchor': 'end', fill: 'var(--fg-2)' }, '第 30 轮'));
+  svg.appendChild(svgEl('text', { x: 192, y: 188, 'font-size': 10, 'text-anchor': 'middle', fill: 'var(--fg-2)' }, '每根柱子 = 该轮要重发的输入 token（历史越长越贵）'));
+
+  function fmtTok(t) { return t >= 10000 ? (t / 10000).toFixed(1) + ' 万' : String(t); }
+  function update() {
+    const n = +slider.value;
+    valEl.textContent = n;
+    bars.forEach((b, i) => {
+      b.setAttribute('fill', i + 1 < n ? 'var(--sky)' : (i + 1 === n ? 'var(--amber)' : 'var(--hairline)'));
+    });
+    let cumIn = 0;
+    for (let k = 1; k <= n; k++) cumIn += inTok(k);
+    const cumOut = A * n;
+    const fee = cumIn * IN_PRICE + cumOut * OUT_PRICE;
+    document.getElementById('cost-round-tok').textContent = '约 ' + fmtTok(inTok(n)) + ' token';
+    document.getElementById('cost-cum-tok').textContent = '约 ' + fmtTok(cumIn + cumOut) + ' token';
+    document.getElementById('cost-cum-fee').textContent = fee < 0.01 ? '≈ ¥' + fee.toFixed(4) : '≈ ¥' + fee.toFixed(2);
+    document.getElementById('cost-note').textContent =
+      fee < 0.01 ? '不到 1 分钱 —— 单聊确实便宜。' :
+      fee < 0.1 ? '几分钱量级 —— 仍然便宜，但注意柱子越长越高。' :
+      '几毛钱量级 —— 想象 Agent 一天自动跑几百轮，再乘以用户数。';
+  }
+  slider.addEventListener('input', update);
+  update();
+})();
+
+/* ---------- 演示三：messages 列表与"失忆"实验 ---------- */
+(function () {
+  const ROLE_STYLE = {
+    system:    { fill: 'var(--bg-inset)', stroke: 'var(--hairline-strong)', limit: 12 },
+    user:      { fill: 'var(--sky-bg)',   stroke: 'var(--sky)',             limit: 13 },
+    assistant: { fill: 'var(--sage-bg)',  stroke: 'var(--sage)',            limit: 11 }
+  };
+  const ROUNDS = [
+    { u: '我叫小拓，刚开始学 AI。', a: '你好小拓！欢迎入坑，想先聊点什么？',
+      desc: '你的话和它的回复都被 append 进了 list。注意：刚才发出去的是整个列表（system + 你这句），不止一句话。' },
+    { u: '我叫什么名字？', a: '你叫小拓 —— 上一句你刚说过呀。',
+      desc: '它"记得"名字，不是因为记性好，而是带名字的那条消息刚刚又被你的代码原封不动重发了一遍。剪刀已解锁 ✂️' },
+    { u: '再问一遍：我叫什么？', a: null, desc: null }
+  ];
+  const listG = document.getElementById('mem-list');
+  const arrows = document.getElementById('mem-arrows');
+  const btnSend = document.getElementById('mem-send');
+  const btnCut = document.getElementById('mem-cut');
+  const btnReset = document.getElementById('mem-reset');
+  const titleEl = document.getElementById('mem-title');
+  const descEl = document.getElementById('mem-desc');
+  const statsEl = document.getElementById('mem-stats');
+
+  let msgs, idx, cut, busy, done;
+
+  function init() {
+    msgs = [{ role: 'system', text: '你是一位耐心的 AI 课程助教', cut: false }];
+    idx = 0; cut = false; busy = false; done = false;
+    titleEl.textContent = '初始状态';
+    descEl.textContent = 'messages 里只有一条 system —— 给模型的人物小传。右边的云端什么都不知道，也什么都不会记。';
+    statsEl.innerHTML = '<span class="pill pill-ink">点「发送下一轮」开始</span>';
+    render(); syncBtns();
+  }
+  function syncBtns() {
+    btnSend.disabled = busy || done || idx >= ROUNDS.length;
+    btnCut.disabled = busy || done || cut || idx < 2;
+  }
+  function trunc(t, n) { return t.length > n ? t.slice(0, n) + '…' : t; }
+  function render() {
+    listG.innerHTML = '';
+    msgs.forEach((m, i) => {
+      const y = 30 + i * 32;
+      const s = ROLE_STYLE[m.role];
+      const g = svgEl('g', m.cut ? { opacity: 0.35 } : {});
+      g.appendChild(svgEl('rect', { x: 12, y: y, width: 188, height: 26, rx: 7, fill: s.fill, stroke: s.stroke, 'stroke-width': 1 }));
+      g.appendChild(svgEl('text', { x: 22, y: y + 17, 'font-size': 10, fill: 'var(--fg-0)' }, m.role + ' · ' + trunc(m.text, s.limit)));
+      if (m.cut) g.appendChild(svgEl('line', { x1: 12, y1: y + 13, x2: 200, y2: y + 13, stroke: 'var(--terracotta)', 'stroke-width': 1.5 }));
+      listG.appendChild(g);
+    });
+  }
+  function showStats() {
+    const sent = msgs.filter(m => !m.cut);
+    const chars = sent.reduce((s, m) => s + m.text.length + 4, 0);
+    statsEl.innerHTML =
+      '<span class="pill pill-sky">本轮发送 ' + sent.length + ' 条消息</span>' +
+      '<span class="pill pill-amber">约 ' + Math.round(chars * 1.5) + ' token（粗算）</span>';
+  }
+  function send() {
+    if (busy || done || idx >= ROUNDS.length) return;
+    busy = true; syncBtns();
+    const r = ROUNDS[idx];
+    const isLast = idx === ROUNDS.length - 1;
+    const a = isLast ? (cut ? '抱歉，这段对话里没出现过你的名字……' : '还是小拓呀，这是你第三次问了。') : r.a;
+    const desc = isLast
+      ? (cut
+        ? '失忆实锤：带名字的消息被你删了，而模型那头从来就没存过任何东西。所谓"记忆"，就是你代码里那个 list —— 第 17 课验证完毕。'
+        : '历史还在 list 里，它就永远"记得"。点「重置」，这次在第 3 轮之前先点 ✂️ 砍掉历史，再看看它的反应。')
+      : r.desc;
+
+    msgs.push({ role: 'user', text: r.u, cut: false });
+    render(); showStats();
+    titleEl.textContent = '第 ' + (idx + 1) + ' 轮已发送';
+    if (!REDUCED) {
+      arrows.classList.remove('pulse');
+      void arrows.getBoundingClientRect();
+      arrows.classList.add('pulse');
+    }
+    const finish = () => {
+      msgs.push({ role: 'assistant', text: a, cut: false });
+      render();
+      descEl.textContent = 'AI：「' + a + '」 — ' + desc;
+      idx += 1;
+      if (idx >= ROUNDS.length) { done = true; titleEl.textContent = '演示结束 · 第 ' + idx + ' 轮'; }
+      busy = false; syncBtns();
+    };
+    if (REDUCED) finish(); else setTimeout(finish, 650);
+  }
+  function doCut() {
+    if (busy || done || cut || idx < 2) return;
+    cut = true;
+    msgs.forEach((m, i) => { if (i > 0) m.cut = true; });
+    render();
+    titleEl.textContent = '历史已删除';
+    descEl.textContent = '✂️ 第 1、2 轮被你从 list 里删掉了（只留 system）。注意模型那边毫无反应 —— 它本来就什么都没存。现在发送第 3 轮试试。';
+    statsEl.innerHTML = '<span class="pill pill-terracotta">已删除 4 条历史</span>';
+    syncBtns();
+  }
+  btnSend.addEventListener('click', send);
+  btnCut.addEventListener('click', doCut);
+  btnReset.addEventListener('click', init);
+  init();
+})();
+</script>
+
+</body>
+</html>

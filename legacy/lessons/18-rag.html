@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 18 课 · RAG：给 AI 外挂知识库 — 拓智</title>
+<meta name="description" content="模型的知识冻结在训练截止日，也不认识你的私有文档。RAG 用'切块 → 向量化 → 检索 → 注入上下文'四步给 AI 外挂知识库 —— 交互动画逐步点亮完整管线，外加 RAG vs 微调对照与三种翻车现场。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：流程清单 / RAG 管线步进演示 ---------- */
+.mt-14 { margin-top: 14px; }
+
+.flow { display: flex; flex-direction: column; }
+.flow-step { display: flex; gap: 14px; padding: 12px 0; align-items: baseline; }
+.flow-step + .flow-step { border-top: 1px dashed var(--hairline); }
+.flow-step .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--bg-inset); color: var(--fg-1); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; align-self: flex-start; }
+.flow-step .txt { font-size: 15px; }
+.flow-step .txt .footnote { display: block; margin-top: 2px; }
+.flow-card { padding: 8px 22px 10px; }
+.flow-card .phase-tag { padding-top: 14px; }
+
+/* 演示：堆叠布局（管线很宽，左右分栏会太挤） */
+.demo-body.stack { grid-template-columns: 1fr; }
+.demo-body.stack .demo-side { border-left: none; border-top: 1px solid var(--hairline); }
+.demo-stage-col { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.rag-caption { font-size: 13px; color: var(--fg-2); margin-top: 10px; text-align: center; min-height: 20px; font-weight: 500; }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* SVG 内动画元素 */
+.rag-anim { transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.3, 1), opacity 0.65s ease; }
+.rag-chunk rect { fill: var(--bg-inset); stroke: var(--hairline); stroke-width: 1; transition: fill 0.5s ease, stroke 0.5s ease; }
+.rag-chunk text { fill: var(--fg-1); pointer-events: none; }
+.rag-chunk.on text { fill: var(--fg-0); }
+.rag-chunk.on.c-sky rect { fill: var(--sky-bg); stroke: var(--sky); }
+.rag-chunk.on.c-amber rect { fill: var(--amber-bg); stroke: var(--amber); }
+.rag-chunk.on.c-sage rect { fill: var(--sage-bg); stroke: var(--sage); }
+.rag-dot circle { stroke: none; transition: stroke 0.4s ease; }
+.rag-dot.hit circle { stroke: var(--terracotta); stroke-width: 2.5; }
+@media (prefers-reduced-motion: reduce) {
+  .rag-anim, .rag-chunk rect, .rag-dot circle { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第四阶段 · 应用篇</span> / <span>第 18 课</span>
+    </div>
+    <h1>RAG：给 AI 外挂知识库</h1>
+    <p class="subhead">大模型不知道你公司的文档怎么办？切块 → 向量化 → 检索 → 注入上下文，动画演示完整流程。</p>
+    <div class="meta">
+      <span class="pill pill-ink">进阶</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span>
+      <span class="pill pill-terracotta">核心难点</span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 30 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>一句话说清 RAG 的本质：开卷考试 —— 模型不背你的文档，答题时现场翻到对的那几页</div>
+      <div class="goal-item"><span class="tick">✓</span>把 RAG 管线拆成两条线：离线建库（切块 → 向量化 → 入库）与在线问答（检索 → 拼 prompt → 生成带出处的回答）</div>
+      <div class="goal-item"><span class="tick">✓</span>算清「RAG vs 微调」四笔账 —— 知识更新、可溯源、成本、数据安全，知道知识注入为什么几乎一边倒选 RAG</div>
+      <div class="goal-item"><span class="tick">✓</span>认得出三种翻车现场：检索不准、切块切碎语义、模型无视小抄 —— 看穿"上了 RAG 怎么还会编"</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：开卷考试 —— 小抄要带，更要翻得到</h2>
+    <p class="lead">上一课的最后一句话是："<b>把对的信息放进窗，胜过把所有信息塞进窗。</b>"这一课就讲那套自动找出"对的信息"、再塞进窗的工程系统。先把动机算清楚 —— 你想让 AI 回答自家文档的问题时，面前横着三堵墙：</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">墙一 · 第 12 课讲过</div>
+        <div class="en">知识有<b>截止日</b></div>
+        <div class="zh">预训练一结束，参数就封板。训练截止日之后的世界 —— 昨天发布的新品、今早改的价格 —— 模型一概不知。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">墙二 · 训练数据没有你</div>
+        <div class="en">私有文档是<b>盲区</b></div>
+        <div class="zh">你公司的请假制度、项目文档、客服话术从没进过训练语料，参数里压根没有 —— 怎么问都问不出真的，只能问出编的。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">墙三 · 第 17 课讲过</div>
+        <div class="en">窗口<b>塞不下</b></div>
+        <div class="zh">把全部文档塞进上下文？贵、慢，关键内容还容易在中间被看丢（lost in the middle）—— 上一课刚算过这笔账。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">三堵墙堵死了两条直觉路：往参数里"教"，教不进也教不起；往窗里"塞"，塞不下也读不清。主流解法走了第三条路：</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">直觉方案</span></div>
+        <div class="big">让 AI"学会"我的文档 <span class="gap">→</span> 训练太贵，全塞进窗又放不下</div>
+        <p class="note">两条路都撞墙：参数改不动（第 12 课），窗口装不下、读不清（第 17 课）。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">真实主流方案</span></div>
+        <div class="big">文档放窗外，<span class="hl">按题检索</span> <span class="gap">→</span> 每次只把最相关的几段塞进窗</div>
+        <p class="note">这就是 RAG：模型一个参数不动，动的只是每次喂给它的窗内内容。</p>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">RAG = Retrieval-Augmented Generation，<span class="hl">检索增强生成</span> —— 用检索（R）到的资料，增强（A）模型的生成（G）。</div>
+      <div class="zh">最准的比喻是<b>开卷考试</b>：闭卷靠背（知识冻结在参数里）注定答不了新题；开卷可以带一整箱资料进考场，但考试只有两小时 —— 决定成绩的不是带了多少，而是<b>能不能快速翻到对的那一页</b>。"翻页"就是检索，"照着资料组织答案"就是生成。整门 RAG 工程，一句话：练习翻书。</div>
+    </div>
+    <p class="lead mt-14">你其实早就用过 RAG，只是产品没把流水线亮给你看。把日常现象和机制连上线：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>你在产品里见过的现象</th><th>背后同一套机制</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>给 ChatGPT / Claude 传一份 PDF，它能答内容、还给出页码引用</b></td>
+            <td class="ex">文档被切块、建了索引，每次回答只检索相关片段塞进窗 —— 一套随开随用的迷你 RAG</td>
+          </tr>
+          <tr>
+            <td><b>AI 搜索的回答下面挂着一排来源链接</b></td>
+            <td class="ex">同一条管线，只是"检索"从向量库换成了搜索引擎 —— R 的形式变了，A 和 G 没变</td>
+          </tr>
+          <tr>
+            <td><b>企业客服机器人答得出上周刚改的退货政策</b></td>
+            <td class="ex">政策文档更新后重建索引即生效 —— 模型没动过，动的是库</td>
+          </tr>
+          <tr>
+            <td><b>问得太偏时，它回答"资料中未找到相关内容"</b></td>
+            <td class="ex">检索没命中 + 系统提示要求"查不到就承认" —— 这份诚实是设计出来的，不是模型自觉</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead mt-14">但"翻到对的那页"说着轻巧：文档怎么存，才能按"意思"翻？"对的那页"由谁判定？翻出来之后塞进哪里？下一节把整条流水线拆开看。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 两阶段拆透：先建库（离线），再问答（在线）</h2>
+    <p class="lead">RAG 不是某个新模型，而是一条流水线 —— 准确说是两条：一条<b>离线</b>，建库时跑一次就好；一条<b>在线</b>，每次提问都从头跑一遍。分开看，每一步都不神秘。</p>
+    <div class="card flow-card">
+      <div class="phase-tag"><span class="pill pill-amber">阶段一 · 建库（离线，只做一次）</span></div>
+      <div class="flow">
+        <div class="flow-step"><span class="num">1</span><span class="txt"><b>收集文档。</b>员工手册、产品文档、历史工单……任何文本都行。<span class="footnote">这一步定下知识库的上限：库里没有的内容，后面的环节谁也变不出来。</span></span></div>
+        <div class="flow-step"><span class="num">2</span><span class="txt"><b>切块（chunk）。</b>把长文档切成几百字一块的"语义完整小段"。<span class="footnote">为什么要切？因为检索的最小单位是块：块太大，一块里混着多个话题，检索容易拿错、塞进窗还费 token；块太小，一句话被切碎、上下文丢光。常见做法：按标题和段落边界切，相邻块之间留一段重叠。</span></span></div>
+        <div class="flow-step"><span class="num">3</span><span class="txt"><b>向量化（embedding）。</b>每个块交给 embedding 模型，变成一串数字坐标 —— 第 8 课的"语义变坐标"在这里上岗。<span class="footnote">意思相近的块，坐标就相近："年假规定"和"休假申请"是邻居，和"发票报销"隔得很远。</span></span></div>
+        <div class="flow-step"><span class="num">4</span><span class="txt"><b>存入向量库。</b>一种专门按"谁离谁近"做查询的数据库；存块的同时记下出处（来自哪个文档、哪一节）。<span class="footnote">这条出处元数据，就是最后回答能"给引用"的原料。</span></span></div>
+      </div>
+    </div>
+    <div class="card flow-card mt-14">
+      <div class="phase-tag"><span class="pill pill-sky">阶段二 · 问答（在线，每题跑一遍）</span></div>
+      <div class="flow">
+        <div class="flow-step"><span class="num">1</span><span class="txt"><b>问题向量化。</b>用户的问题用同一个 embedding 模型变成坐标。<span class="footnote">必须是同一个 —— 两套坐标系之间没法比距离。</span></span></div>
+        <div class="flow-step"><span class="num">2</span><span class="txt"><b>最近邻检索。</b>在向量库里找离问题最近的 top-k 个块，k 通常是个位数。<span class="footnote">"最近" = 语义最相关。这是按意思找，不是按字面找 —— 下一节会看到这件事的威力和软肋。</span></span></div>
+        <div class="flow-step"><span class="num">3</span><span class="txt"><b>拼装 prompt。</b>系统提示（"只根据下方资料回答，并注明出处"）＋命中的 k 块原文＋用户问题，拼成一个 prompt。<span class="footnote">上一课的口诀在这里落地：进窗的不是整个库，只是这 k 块。</span></span></div>
+        <div class="flow-step"><span class="num">4</span><span class="txt"><b>生成回答。</b>模型读着窗内片段作答，按要求标出处。<span class="footnote">对模型来说，这只是一次普通的"带资料阅读理解"—— 它不知道向量库的存在，更没"学会"任何新知识。</span></span></div>
+      </div>
+    </div>
+    <p class="lead mt-14">最关键的一点值得单独画线：<b>整条流水线没改模型的任何一个参数。</b>知识冻结在参数里（第 12 课）、能变的只有窗内内容（第 17 课）—— RAG 完全顺着这两条铁律做事。所以严格说，RAG 没有"教会"模型什么，它只是给模型配了一位<b>非常会翻书的秘书</b>：每次提问，秘书把对的几页摊在模型面前。由此立刻得到两个推论：① 知识更新 = 换文档重建索引，分钟级生效；② 模型答完即忘，下一题秘书重新翻书。这两个推论，正是下一节这场对决的胜负手。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 为什么不直接微调？算四笔账</h2>
+    <p class="lead">总有另一条路看起来更"彻底"：把公司文档拿去微调（第 13 课），让知识真正长进参数里 —— 一劳永逸，多好。但工程界在"知识注入"这件事上几乎一边倒选 RAG。账本摆开，四行看完：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>比什么</th><th>RAG · 外挂知识库</th><th>微调 · 把知识练进参数</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="be">知识更新</td>
+            <td class="ex">改文档、重建索引，分钟级生效 —— 上午改制度，下午问就是新答案</td>
+            <td class="ex">重新备数据、重新训练，天级起步；还可能"学了新的、忘了旧的"</td>
+          </tr>
+          <tr>
+            <td class="be">可溯源</td>
+            <td class="ex">每个回答能附出处，点开就能核对原文</td>
+            <td class="ex">知识被揉散进亿万参数，说不清哪句话从哪学的 —— 答错了也无从对账</td>
+          </tr>
+          <tr>
+            <td class="be">成本</td>
+            <td class="ex">一次建库＋每次检索，开销量级远低于训练</td>
+            <td class="ex">GPU、数据清洗、调参、回归测试 —— 一支专业团队的活</td>
+          </tr>
+          <tr>
+            <td class="be">数据安全</td>
+            <td class="ex">文档留在自家库里，还能按权限检索：谁有权看，才检索给谁</td>
+            <td class="ex">数据一旦练进参数就收不回、没法按人隔离，还可能被刻意提问"套"出来</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead mt-14">注意，这不是说微调没用 —— 微调的主场在<b>行为与风格</b>：让模型说话像客服、输出固定格式、熟悉行业黑话（第 13 课的本职工作）。一句话分工：<b>知识事实问 RAG，言行举止靠微调</b>，成熟系统经常两者并用 —— 微调教它"怎么答"，RAG 喂它"答什么"。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🔧 工程师视角：三种翻车现场</h2>
+    <p class="lead">流程图上的 RAG 人人会画，线上跑得稳的 RAG 凤毛麟角 —— 差距全在失败模式里。下面三种翻车现场，做 RAG 的工程师每天都在修：</p>
+    <div class="example">
+      <div class="en">现场一 · 检索不准：<span class="hl">用户和文档不说同一种话</span>。用户问「电脑坏了找谁修？」，文档写的是「IT 设备故障请通过工单系统报修」—— 关键词一个都对不上。</div>
+      <div class="zh">语义检索正是为此而生：「电脑坏了」和「设备故障报修」在向量空间里是近邻，<b>按意思能找到、按字面找不到</b>。但它也不万能 —— 在产品型号、人名、编号这类"字面必须精确"的查询上，语义检索反而常输给关键词搜索，所以成熟系统多用<b>混合检索</b>（语义＋关键词各跑一遍再合并排序）。记住这条因果链：<b>检索拿错了页，后面的模型再强，也只能照着错页答。</b></div>
+    </div>
+    <div class="example">
+      <div class="en">现场二 · 切块切碎语义：<span class="hl">一句话被拦腰截断</span>。原文是「年假 10 天（注：仅适用于工作满 5 年的员工）」，切块恰好从括号前断开 —— 检索只命中前半块，机器人自信回答「年假 10 天」。</div>
+      <div class="zh">块是检索的最小单位，<b>切坏了，后面神仙难救</b>。三种常见病：句子被拦腰截断（如上）、限定条件和正文被切散、表格被切成无意义碎片。对策很朴素：按标题和段落边界切、相邻块留重叠、关键文档人工抽查切块结果 —— 不优雅，却是 RAG 工程里性价比最高的活。</div>
+    </div>
+    <div class="example">
+      <div class="en">现场三 · 模型无视小抄：<span class="hl">片段就在窗里，它照样编</span>。片段明明写着「本产品不支持 Windows 7」，模型却热情回答「支持的，安装方法是……」。</div>
+      <div class="zh">预训练的统计惯性（第 12 课）有时会压过窗内的事实；片段里没有答案时，模型也倾向于"友好地编一个"而不是认错。对策：系统提示写死「只根据资料回答，资料里没有就明说」、要求逐条标出处、把 temperature 调低（第 14 课）。但这些只能压低概率，<b>不能归零</b> —— 这正是出处必须可点开核查的原因。</div>
+    </div>
+    <p class="lead mt-14">三个现场分别对应管线的三段：检索、切块、生成 —— 修 RAG 的第一步永远是先定位翻车在哪一段。第 28 课《实战 RAG》会带你亲手写代码搭一个知识库，把这三个坑挨个踩一遍、再爬出来。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：把 RAG 管线亲手跑一遍</h2>
+    <p class="lead">用一个具体场景走全程：把《员工手册》《报销制度》《考勤规定》三份文档建成知识库，然后问「年假有几天？」。连点「下一步」，看 6 步管线如何把一个问题变成一个<b>带出处的回答</b> —— 尤其留意第 ④ 步：命中的三块里，有一块来自另一份文档。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · RAG 全管线：从文档到带出处的回答</span>
+        <span class="demo-hint">蓝 = 员工手册 · 黄 = 报销制度 · 绿 = 考勤规定 · 红 = 用户问题</span>
+      </div>
+      <div class="demo-body stack">
+        <div class="demo-stage">
+          <div class="demo-stage-col">
+            <svg id="rag-svg" viewBox="0 0 720 430" width="700" aria-label="RAG 管线演示：左侧三份文档被切块，块变成点落入中间的向量库，用户问题也变成点并找到最近的三块，命中块文本飞入右侧 prompt 模板，模型输出带引用的回答">
+              <text x="16" y="24" font-size="12" font-weight="700" fill="var(--fg-0)">建库（离线 · 只做一次）</text>
+              <!-- 向量库 -->
+              <rect x="196" y="44" width="264" height="240" rx="14" fill="none" stroke="var(--hairline-strong)" stroke-width="1.5" stroke-dasharray="6 4"/>
+              <text x="210" y="64" font-size="11" font-weight="700" fill="var(--fg-0)">向量库 · 语义地图</text>
+              <text x="452" y="64" font-size="9" fill="var(--fg-2)" text-anchor="end">意思越近，点越近</text>
+              <g id="rag-cl" class="rag-anim" font-size="9" fill="var(--fg-2)">
+                <text x="380" y="100" text-anchor="middle">休假类</text>
+                <text x="224" y="180" text-anchor="middle">报销类</text>
+                <text x="344" y="224" text-anchor="middle">考勤类</text>
+              </g>
+              <g id="rag-lines" class="rag-anim"></g>
+              <g id="rag-docs"></g>
+              <g id="rag-dots"></g>
+              <!-- 用户问题气泡 -->
+              <g id="rag-qb" class="rag-anim">
+                <rect x="196" y="302" width="264" height="36" rx="10" fill="var(--terracotta-bg)" stroke="var(--terracotta)" stroke-width="1"/>
+                <text x="328" y="325" font-size="12" font-weight="700" fill="var(--fg-0)" text-anchor="middle">用户提问：「年假有几天？」</text>
+              </g>
+              <g id="rag-star" class="rag-anim">
+                <path d="M0,-7 L7,0 L0,7 L-7,0 Z" fill="var(--terracotta)"/>
+              </g>
+              <!-- 在线问答区：prompt 模板 -->
+              <g id="rag-online" class="rag-anim">
+                <text x="488" y="24" font-size="12" font-weight="700" fill="var(--fg-0)">问答（在线 · 每题跑一遍）</text>
+                <rect x="488" y="44" width="218" height="230" rx="12" fill="var(--glass)" stroke="var(--hairline-strong)" stroke-width="1"/>
+                <text x="497" y="62" font-size="11" font-weight="700" fill="var(--fg-0)">发给模型的 prompt</text>
+                <rect x="496" y="70" width="202" height="44" rx="6" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1"/>
+                <text x="502" y="83" font-size="9" font-weight="600" fill="var(--fg-0)">【系统提示】你是 HR 助手，</text>
+                <text x="502" y="94" font-size="9" fill="var(--fg-1)">只根据下方资料回答并注明出处；</text>
+                <text x="502" y="105" font-size="9" fill="var(--fg-1)">资料里查不到就直说查不到。</text>
+                <g id="rag-slots"></g>
+              </g>
+              <g id="rag-fills"></g>
+              <!-- 模型回答 -->
+              <g id="rag-ans" class="rag-anim">
+                <rect x="488" y="286" width="218" height="132" rx="10" fill="var(--sage-bg)" stroke="var(--sage)" stroke-width="1"/>
+                <text x="500" y="306" font-size="10.5" font-weight="700" fill="var(--fg-0)">【模型回答】</text>
+                <text x="500" y="324" font-size="10" fill="var(--fg-0)">入职满 1 年有 5 天年假，工作</text>
+                <text x="500" y="340" font-size="10" fill="var(--fg-0)">满 5 年增至 10 天；休假记得</text>
+                <text x="500" y="356" font-size="10" fill="var(--fg-0)">提前 3 天在 OA 申请。</text>
+                <text x="500" y="382" font-size="9.5" fill="var(--sky)">出处：员工手册 §2、§3</text>
+                <text x="500" y="398" font-size="9.5" fill="var(--sky)">　　　考勤规定 §1</text>
+              </g>
+            </svg>
+            <div class="rag-caption" id="rag-caption"></div>
+          </div>
+        </div>
+        <div class="demo-side">
+          <div class="chips">
+            <button class="chip active" id="rag-next">下一步 ▸</button>
+            <button class="chip" id="rag-reset">↺ 重置</button>
+            <span class="footnote" id="rag-progress" style="align-self:center"></span>
+          </div>
+          <h4 id="rag-title" style="margin-top:14px"></h4>
+          <p id="rag-desc"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">上了 RAG，模型就"学会"了我的文档</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">模型一个参数都没变 —— 只是答题时临时看了几页小抄，下一题就忘</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"答对了文档内容"误当成"学会了"。RAG 的全部"知识"都装在每次进窗的那几个片段里：回答一结束，窗一清，模型回到出厂状态（第 17 课：读完即忘）。一个拆穿它的实验：<b>把向量库删掉，它立刻"全忘"</b> —— 真学进参数的东西，是不会因为删个库就消失的。所以也别指望它"越用越懂你们公司"：它没有在积累，只有秘书每次重新翻书。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">上了 RAG 就不会幻觉了，回答还带引用，可以放心抄</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">检索错页、片段不全时照样编 —— 引用机制不是消灭幻觉，是让你能核查</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把 RAG 当成了"幻觉杀毒软件"。它确实能压低幻觉 —— 因为给了模型可抄的材料 —— 但管线三段各有翻车方式：检索拿错页、切块丢了限定条件、模型无视小抄按旧知识作答。出处的真正价值是<b>可验证</b>：拿到带引用的回答，顺着出处点开原文核对一眼，永远胜过盲信任何 AI —— 这也是 RAG 比微调多给你的那份安全带，记得系上。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 公司今天上调了差旅报销标准。一个用 RAG 的客服机器人和一个把旧制度微调进参数的机器人，各自要做什么才能答对新标准？大概要多久？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>RAG：</b>更新报销制度文档、重建（或增量更新）该文档的索引即可，<b>分钟级</b>生效 —— 模型本身不用碰。<b>微调：</b>要重新整理训练数据、再训练一轮、做回归测试防止"学新忘旧"，<b>天级起步</b>且需要专业团队。这正是"知识注入选 RAG"的第一笔账：知识会变，参数难改，文档好换。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 用户问"宠物能带进办公室吗"，知识库里明明有《办公场所管理规定》写着"禁止携带动物进入办公区"，机器人却回答"资料中没有相关规定"。猜两个最可能翻车的环节，并说说怎么排查。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>环节一：检索不准。</b>"宠物"与"携带动物"虽然语义相近，但相似度可能仍排不进 top-k，于是该块没进窗。排查：看检索日志里实际命中了哪几块，试着调大 k 或换混合检索。<b>环节二：切块切碎。</b>这条规定可能和大量无关条文切在同一块里（语义被稀释），或者被拦腰截断。排查：直接搜库里包含"动物"的块，看它长什么样。口诀：<b>先定位翻车在哪一段，再动手修</b> —— 模型往往是最无辜的那个。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 朋友说："我把 1000 页产品手册传进了 AI 的知识库功能，现在它已经学会我们的产品了，回答我都直接转发给客户。"用本课和第 17 课的知识，指出这句话里两处危险的误解。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>误解一："学会了"。</b>模型参数分毫未动 —— 每次回答只是检索出几个片段临时塞进窗，答完即忘（第 17 课：窗外的等于不存在）。<b>误解二："直接转发"。</b>每次进窗的只有命中的 top-k 块，不是 1000 页全文：检索没命中、切块切碎、模型无视小抄，任何一段翻车都会产出一本正经的错答案。正确姿势：要求回答带出处，<b>转发前顺着引用核对原文</b> —— 引用机制就是为这一步准备的。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="17-context-window.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">17 上下文窗口：AI 的工作记忆</div>
+    </a>
+    <a class="card next" href="19-function-calling.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">19 Function Calling：AI 长出双手</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- RAG 管线步进演示 ---------- */
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var STEPS = 6;
+
+  /* 三份文档 × 各 3 块：t = 块文本，dot = 在向量库中的坐标，hit = 是否被检索命中 */
+  var DOCS = [
+    { name: '📄 员工手册', color: 'sky', y: 44, chunks: [
+      { t: '试用期为 3 个月', dot: [252, 108] },
+      { t: '入职满 1 年：年假 5 天', dot: [382, 118], hit: true, src: '员工手册 §2' },
+      { t: '工作满 5 年：年假 10 天', dot: [412, 142], hit: true, src: '员工手册 §3' }
+    ]},
+    { name: '📄 报销制度', color: 'amber', y: 170, chunks: [
+      { t: '打车报销需提供发票', dot: [238, 196] },
+      { t: '差旅住宿每晚上限 400 元', dot: [264, 214] },
+      { t: '出差餐补每日 30 元', dot: [242, 238] }
+    ]},
+    { name: '📄 考勤规定', color: 'sage', y: 296, chunks: [
+      { t: '休假需提前 3 天在 OA 申请', dot: [360, 150], hit: true, src: '考勤规定 §1' },
+      { t: '迟到超 30 分钟记缺勤', dot: [330, 240] },
+      { t: '加班 1 天可调休 1 天', dot: [356, 258] }
+    ]}
+  ];
+  var STAR = [386, 136];                 // 问题在向量库中的落点
+  var STAR_HOME = [328, 320];            // 问题气泡中心
+  var SLOT_Y = [122, 158, 194];          // 三个检索片段槽位的 y
+  var QSLOT_Y = 232;
+
+  var CAPS = [
+    '三份公司文档等着入库 —— 右侧的问答区暂时还用不上',
+    '① 切块：每份文档被切成 3 个语义完整的小块',
+    '② 向量化：9 个块各自算出 embedding，按语义远近落进向量库',
+    '③ 用户提问 —— 从这里开始是在线问答阶段',
+    '④ 检索：问题也变成一个点，最近的 3 块被命中 —— 有一块来自另一份文档',
+    '⑤ 拼装：命中块的原文＋出处＋问题，填进 prompt 模板',
+    '⑥ 生成：模型照着窗内片段作答并给出处 —— 全程没改一个参数'
+  ];
+  var INFO = [
+    { t: '开局：三份文档、一个空库', d: '左边是公司的三份制度文档。RAG 的第一阶段是"建库"，离线做一次就好 —— 之后所有人的所有提问都复用这座库。点「下一步」开始。' },
+    { t: '切块（chunk）', d: '整篇文档太长，不能直接当检索单位，于是切成一块块语义完整的小段。块太大，检索容易拿错、塞窗费 token；块太小，一句话被拦腰截断。切块质量直接决定最后答得好不好 —— 这是 RAG 工程的第一道关。' },
+    { t: '语义变坐标（第 8 课回归）', d: '每个块经 embedding 模型变成一串数字，相当于在"语义地图"上有了座标：讲休假的块彼此挨着，讲报销的块抱团在另一边。这张图就是向量库 —— 一种专门按"谁离谁近"做查询的数据库。' },
+    { t: '用户上线提问', d: '注意：问题里只有"年假"两个关键字，没提"休假"也没提"考勤"。如果用老式关键词搜索，考勤规定里那条"休假需提前申请"就漏掉了 —— 看下一步语义检索怎么处理。' },
+    { t: '最近邻检索 top-3', d: '问题用同一个 embedding 模型变成点、落进同一张地图，然后找离它最近的 3 个块。看：两条年假条款＋一条休假申请规定被命中，报销类的块纹丝不动 —— 按"意思"找，不按字面找，还能跨文档命中。' },
+    { t: '拼进 prompt', d: '命中的 3 块原文连同出处，和用户问题一起填进 prompt 模板。对模型来说，这只是一次普通的"带资料阅读理解"—— 它不知道向量库的存在，只看见窗内这几段文字（第 17 课）。' },
+    { t: '带出处的回答', d: '模型基于片段作答并标明来源，你能顺着出处核对原文 —— 这是 RAG 比"裸问"多出的关键能力。下一个问题进来？从第 ③ 步重跑，向量库不必重建；模型对刚才这题，已经忘得一干二净。' }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  var docsG = $('rag-docs'), dotsG = $('rag-dots'), linesG = $('rag-lines'),
+      slotsG = $('rag-slots'), fillsG = $('rag-fills');
+
+  var chunkEls = [], dotEls = [], hitChunks = [];
+
+  /* 文档标题 + 块条 + 向量点 */
+  DOCS.forEach(function (doc) {
+    var title = el('text', { x: 16, y: doc.y + 10, 'font-size': '11', 'font-weight': '700', fill: 'var(--fg-0)' });
+    title.textContent = doc.name;
+    docsG.appendChild(title);
+    doc.chunks.forEach(function (c, i) {
+      var g = el('g', { 'class': 'rag-chunk rag-anim c-' + doc.color });
+      g.appendChild(el('rect', { x: 0, y: 0, width: 148, height: 22, rx: 4 }));
+      var t = el('text', { x: 7, y: 15, 'font-size': '9.5' });
+      t.textContent = c.t;
+      g.appendChild(t);
+      docsG.appendChild(g);
+      var packedY = doc.y + 18 + i * 23;
+      var spreadY = doc.y + 22 + i * 28;
+      chunkEls.push({ g: g, packedY: packedY, spreadY: spreadY });
+
+      var dg = el('g', { 'class': 'rag-dot rag-anim' });
+      dg.appendChild(el('circle', { cx: 0, cy: 0, r: 5, fill: 'var(--' + doc.color + ')' }));
+      dotsG.appendChild(dg);
+      dotEls.push({ g: dg, from: [90, spreadY + 11], pos: c.dot, hit: !!c.hit });
+      if (c.hit) hitChunks.push({ t: c.t, src: c.src, dot: c.dot, color: doc.color });
+    });
+  });
+
+  /* 命中连线（问题点 → 命中块） */
+  hitChunks.forEach(function (h) {
+    linesG.appendChild(el('line', {
+      x1: STAR[0], y1: STAR[1], x2: h.dot[0], y2: h.dot[1],
+      stroke: 'var(--terracotta)', 'stroke-width': 1.5, 'stroke-dasharray': '4 3'
+    }));
+  });
+
+  /* prompt 模板：空槽位 + 飞入的填充块 */
+  var emptyLabels = [];
+  var fillEls = [];
+  hitChunks.forEach(function (h, i) {
+    slotsG.appendChild(el('rect', { x: 496, y: SLOT_Y[i], width: 202, height: 30, rx: 6, fill: 'none', stroke: 'var(--hairline-strong)', 'stroke-width': 1, 'stroke-dasharray': '4 3' }));
+    var lab = el('text', { x: 597, y: SLOT_Y[i] + 19, 'font-size': '9.5', fill: 'var(--fg-2)', 'text-anchor': 'middle', 'class': 'rag-anim' });
+    lab.textContent = '检索片段 ' + ['①', '②', '③'][i];
+    slotsG.appendChild(lab);
+    emptyLabels.push(lab);
+
+    var fg = el('g', { 'class': 'rag-anim' });
+    fg.appendChild(el('rect', { x: 0, y: 0, width: 202, height: 30, rx: 6, fill: 'var(--' + h.color + '-bg)', stroke: 'var(--' + h.color + ')', 'stroke-width': 1 }));
+    var t1 = el('text', { x: 7, y: 13, 'font-size': '9', 'font-weight': '600', fill: 'var(--fg-0)' });
+    t1.textContent = h.t;
+    var t2 = el('text', { x: 7, y: 25, 'font-size': '8.5', fill: 'var(--fg-2)' });
+    t2.textContent = '—— ' + h.src;
+    fg.appendChild(t1); fg.appendChild(t2);
+    fillsG.appendChild(fg);
+    fillEls.push({ g: fg, home: [496, SLOT_Y[i]], from: h.dot });
+  });
+  /* 问题槽位 */
+  slotsG.appendChild(el('rect', { x: 496, y: QSLOT_Y, width: 202, height: 24, rx: 6, fill: 'none', stroke: 'var(--hairline-strong)', 'stroke-width': 1, 'stroke-dasharray': '4 3' }));
+  var qLab = el('text', { x: 597, y: QSLOT_Y + 16, 'font-size': '9.5', fill: 'var(--fg-2)', 'text-anchor': 'middle', 'class': 'rag-anim' });
+  qLab.textContent = '用户问题';
+  slotsG.appendChild(qLab);
+  emptyLabels.push(qLab);
+  var qFill = el('g', { 'class': 'rag-anim' });
+  qFill.appendChild(el('rect', { x: 0, y: 0, width: 202, height: 24, rx: 6, fill: 'var(--terracotta-bg)', stroke: 'var(--terracotta)', 'stroke-width': 1 }));
+  var qt = el('text', { x: 7, y: 16, 'font-size': '10', 'font-weight': '700', fill: 'var(--fg-0)' });
+  qt.textContent = '年假有几天？';
+  qFill.appendChild(qt);
+  fillsG.appendChild(qFill);
+  fillEls.push({ g: qFill, home: [496, QSLOT_Y], from: STAR_HOME });
+
+  var capEl = $('rag-caption'), titleEl = $('rag-title'), descEl = $('rag-desc'),
+      progEl = $('rag-progress'), nextBtn = $('rag-next'), resetBtn = $('rag-reset'),
+      online = $('rag-online'), qb = $('rag-qb'), star = $('rag-star'),
+      ans = $('rag-ans'), cl = $('rag-cl');
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var step = reduced ? STEPS : 0;   // reduced-motion：直接显示完成态
+
+  function layout() {
+    chunkEls.forEach(function (c) {
+      c.g.style.transform = 'translate(16px,' + (step >= 1 ? c.spreadY : c.packedY) + 'px)';
+      c.g.classList.toggle('on', step >= 1);
+    });
+    dotEls.forEach(function (d) {
+      var inMap = step >= 2;
+      var p = inMap ? d.pos : d.from;
+      d.g.style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px)';
+      d.g.style.opacity = !inMap ? 0 : (step >= 4 && !d.hit ? 0.3 : 1);
+      d.g.classList.toggle('hit', step >= 4 && d.hit);
+    });
+    cl.style.opacity = step >= 2 ? 0.85 : 0;
+    online.style.opacity = step >= 3 ? 1 : 0.35;
+    qb.style.opacity = step >= 3 ? 1 : 0;
+    var sp = step >= 4 ? STAR : STAR_HOME;
+    star.style.transform = 'translate(' + sp[0] + 'px,' + sp[1] + 'px)';
+    star.style.opacity = step >= 4 ? 1 : (step >= 3 ? 0.45 : 0);
+    linesG.style.opacity = step >= 4 ? 1 : 0;
+    fillEls.forEach(function (f) {
+      var p = step >= 5 ? f.home : f.from;
+      f.g.style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px)';
+      f.g.style.opacity = step >= 5 ? 1 : 0;
+    });
+    emptyLabels.forEach(function (l) { l.style.opacity = step >= 5 ? 0 : 1; });
+    ans.style.opacity = step >= 6 ? 1 : 0;
+    ans.style.transform = step >= 6 ? 'translate(0,0)' : 'translate(0,10px)';
+
+    capEl.textContent = CAPS[step];
+    titleEl.textContent = INFO[step].t;
+    descEl.textContent = INFO[step].d;
+    progEl.textContent = '第 ' + step + ' / ' + STEPS + ' 步';
+    nextBtn.disabled = step >= STEPS;
+  }
+
+  nextBtn.addEventListener('click', function () {
+    if (step < STEPS) { step++; layout(); }
+  });
+  resetBtn.addEventListener('click', function () {
+    step = 0; layout();
+  });
+
+  layout();
+})();
+</script>
+
+</body>
+</html>

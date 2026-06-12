@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 20 课 · Agent 智能体：会自己干活的 AI — 拓智</title>
+<meta name="description" content="Agent = LLM（大脑）+ 工具（手脚）+ 循环（心跳）+ 记忆（工作台）。步进演示一个 agent 调研降噪耳机的完整循环（含一次失败重试），并诚实拆解错误连乘、死循环与人机协作三件套。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：循环图步进演示 + 足迹日志 ---------- */
+.mt-14 { margin-top: 14px; }
+
+/* 流程清单（沿用 19 课样式） */
+.flow { display: flex; flex-direction: column; }
+.flow-step { display: flex; gap: 14px; padding: 12px 0; align-items: baseline; }
+.flow-step + .flow-step { border-top: 1px dashed var(--hairline); }
+.flow-step .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--bg-inset); color: var(--fg-1); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; align-self: flex-start; }
+.flow-step .txt { font-size: 15px; }
+.flow-step .txt .footnote { display: block; margin-top: 2px; }
+.flow-card { padding: 8px 22px 10px; }
+
+/* 演示：堆叠布局（循环图 + 日志较宽） */
+.demo-body.stack { grid-template-columns: 1fr; }
+.demo-body.stack .demo-side { border-left: none; border-top: 1px solid var(--hairline); }
+.demo-stage-col { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 循环图节点：未点亮 = 半透明，点亮 = 全亮加粗描边 */
+.ag-node rect { transition: opacity 0.35s ease, stroke-width 0.35s ease; opacity: 0.42; }
+.ag-node text { transition: opacity 0.35s ease; opacity: 0.5; }
+.ag-node.lit rect { opacity: 1; stroke-width: 2.4; }
+.ag-node.lit text { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ag-node rect, .ag-node text { transition: none !important; }
+}
+
+.ag-caption { font-size: 13px; color: var(--fg-2); margin-top: 8px; text-align: center; min-height: 20px; font-weight: 500; }
+
+/* 足迹日志 */
+.ag-log { width: 100%; max-width: 680px; margin-top: 12px; background: var(--bg-inset); border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 12px 16px; max-height: 250px; overflow-y: auto; font-size: 13px; }
+.ag-log .placeholder { color: var(--fg-2); }
+.log-round { font-size: 11px; font-weight: 700; color: var(--fg-2); margin: 10px 0 2px; letter-spacing: 0.04em; }
+.log-round:first-child { margin-top: 0; }
+.log-line { display: flex; gap: 8px; padding: 3px 0; align-items: baseline; line-height: 1.55; color: var(--fg-1); }
+.log-line .lt { flex: none; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: var(--r-pill); }
+.lt-think { color: var(--sky); background: var(--sky-bg); }
+.lt-act { color: var(--amber); background: var(--amber-bg); }
+.lt-obs { color: var(--sage); background: var(--sage-bg); }
+.lt-ref { color: var(--terracotta); background: var(--terracotta-bg); }
+.log-line.fail { color: var(--terracotta); font-weight: 600; }
+.log-line .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第四阶段 · 应用篇</span> / <span>第 20 课</span>
+    </div>
+    <h1>Agent 智能体：会自己干活的 AI</h1>
+    <p class="subhead">感知 → 规划 → 行动 → 反思。当大模型装上循环和工具，它开始自主完成多步任务。</p>
+    <div class="meta">
+      <span class="pill pill-ink">进阶</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span>
+      <span class="footnote">约 35 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>一句话分清 Chatbot 和 Agent：一个"一问一答"，一个"给定目标，自主走完多步"—— 判断标准是球在谁手里</div>
+      <div class="goal-item"><span class="tick">✓</span>记住四件套：Agent = LLM（大脑）+ 工具（手脚）+ 循环（心跳）+ 记忆（工作台），每一件都来自前几课的旧零件</div>
+      <div class="goal-item"><span class="tick">✓</span>看懂循环的六拍，以及全课最重要的洞察：上一步的输出就是下一步的输入 —— 模型在自己的足迹上持续决策</div>
+      <div class="goal-item"><span class="tick">✓</span>诚实评估可靠性：明白错误为什么连乘累积，认得死循环 / 跑偏 / 成本爆炸三种死法，记住人机协作三件套解法</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：把"申请单回合"装进循环里</h2>
+    <p class="lead">先盘点前四课攒齐的零件：第 16 课你学会指挥模型，第 17 课摸清它的记忆边界，第 18 课给它外挂资料，第 19 课它学会开工具申请单。但这些场景有个共同点：<b>每个回合都由你发起，答完一轮，球就回到你手里</b>。哪怕模型再强，这种"一问一答"的形态都叫 Chatbot。Agent（智能体）改变的正是这一点 —— 而它和你直觉里的样子，差了一个关键身位：</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">直觉印象</span></div>
+        <div class="big">Agent 就是一个<span class="gap">更聪明的</span>聊天机器人</div>
+        <p class="note">好像只要模型足够强，聊着聊着它就"升级"成了 agent。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">真实机制</span></div>
+        <div class="big">Agent 是把大模型<span class="hl">装进循环里</span>：给定目标后，它自主规划、调工具、看结果、再决策，干完才把球还给你</div>
+        <p class="note">模型本身可以一模一样 —— 差别在外面那圈架构：循环、工具、记忆。</p>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">最贴切的画面是<span class="hl">给实习生派活</span>：你说"调研一下竞品，周五给我报告"—— 他不会每查完一个网页就跑来问"下一步干嘛"，而是自己列提纲、自己搜资料，链接挂了自己换关键词，实在卡死才来找你。</div>
+      <div class="zh">Chatbot 是"事事请示"的协作方式，Agent 是"给目标、交结果"的协作方式。注意：变化的未必是大脑的聪明程度 —— 是<b>协作方式</b>变了。</div>
+    </div>
+    <p class="lead mt-14">拆开任何一个 agent —— 无论产品包装得多炫 —— 里面都是同一副<b>四件套</b>，而且每一件你都在前面的课里见过：</p>
+    <div class="use-grid cols-4">
+      <div class="card use-card">
+        <div class="label">大脑 · 第 10–14 课</div>
+        <div class="en"><b>LLM</b> 大模型</div>
+        <div class="zh">唯一会"想"的零件。规划、选工具、读结果、做判断 —— 全是这台接龙机器在生成文本。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">手脚 · 第 19 课</div>
+        <div class="en"><b>工具</b></div>
+        <div class="zh">搜索、读网页、跑代码、写文件。仍是"模型开申请单、宿主真执行"那一套，一字未改。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">心跳 · 本课主角</div>
+        <div class="en"><b>循环</b></div>
+        <div class="zh">宿主程序里一个朴素的 while：任务没完成，就把最新结果喂回去、再跑一轮。"自主"全靠它续命。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">工作台 · 第 17 课</div>
+        <div class="en"><b>记忆</b></div>
+        <div class="zh">上下文窗口摆着目标、计划和每轮足迹；长任务还要外挂笔记和摘要，防止工作台被堆满。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">一张表把两种形态钉死 —— 顺便认认市面上的真实产品：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>维度</th><th>Chatbot · 一问一答</th><th>Agent · 给定目标自主多步</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="be">交互方式</td>
+            <td class="ex">你发球它接球，答完一句回合即结束</td>
+            <td>你只给目标，它连续打完整局再交付</td>
+          </tr>
+          <tr>
+            <td class="be">一次任务的步数</td>
+            <td class="ex">1 步：生成一段回答</td>
+            <td>几步到几百步：规划、调工具、看结果、再决策</td>
+          </tr>
+          <tr>
+            <td class="be">出错的代价</td>
+            <td class="ex">错了你当场看见，下一句就能纠正</td>
+            <td>错误发生在中间步骤，会被后续步骤继承、放大（下文细讲）</td>
+          </tr>
+          <tr>
+            <td class="be">典型产品</td>
+            <td class="ex">ChatGPT / Claude 的网页对话</td>
+            <td>Claude Code（自主写代码）、Deep Research（自主调研）、Manus 类通用 agent</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote mt-14">提醒：agent 产品的格局变化极快 —— 表里点名的产品请当"形态代表"看，别当排行榜；具体能力以各家官网为准。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 循环拆解：六拍心跳，一轮接一轮</h2>
+    <p class="lead">把"循环"放大到帧。每一轮心跳有六拍 —— 前两拍主要在开局走，后四拍周而复始：</p>
+    <div class="card flow-card">
+      <div class="flow">
+        <div class="flow-step"><span class="num">1</span><span class="txt"><b>感知任务。</b>读懂目标，盘点手头有哪些工具 —— 工具清单就躺在上下文里（第 19 课）。<span class="footnote">"目标"对模型而言只是窗口顶部的一段文字。记住这个事实，误区一会用到它。</span></span></div>
+        <div class="flow-step"><span class="num">2</span><span class="txt"><b>规划拆步。</b>把大目标拆成子任务清单："先搜型号 → 再逐一查评测 → 最后汇总写建议"。<span class="footnote">计划本身就是接龙生成的一段文字（第 16 课思维链的近亲）—— 写出来后，它就成了后续每轮都会读到的路标。</span></span></div>
+        <div class="flow-step"><span class="num">3</span><span class="txt"><b>行动（调用工具）。</b>从计划里取下一步，开一张工具申请单，宿主真正执行。<span class="footnote">第 19 课整套机制原封不动：模型从不亲手执行任何东西 —— agent 没有改变这条铁律，只是开单更频繁了。</span></span></div>
+        <div class="flow-step"><span class="num">4</span><span class="txt"><b>观察结果。</b>执行结果回填上下文 —— 对模型来说，只是"窗里多了一段文字"。<span class="footnote">成功的结果是养料，失败的报错同样是养料 —— 演示里你会亲眼看到一次 404 如何变成转机。</span></span></div>
+        <div class="flow-step"><span class="num">5</span><span class="txt"><b>反思修正。</b>符合预期吗？计划要不要改？这条路不通换哪条？<span class="footnote">"反思"听着玄，落地仍是生成文本：模型读着自己的足迹，续写一段自我评估。</span></span></div>
+        <div class="flow-step"><span class="num">6</span><span class="txt"><b>循环或退出。</b>没完成 → 回到第 3 拍；完成 → 交付答案；反复碰壁 → 放弃并向人汇报。<span class="footnote">注意：判断"完没完成"也是模型生成的，它可能误判 —— 所以成熟产品常在这里设人工验收（下一节细讲）。</span></span></div>
+      </div>
+    </div>
+    <p class="lead mt-14"><b>全课最重要的一句话：上一拍的输出，就是下一拍的输入。</b>Agent 并没有长出新器官 —— 每一轮做决策的，仍是你在第 12–14 课认识的那台接龙机器：读上下文、续写下一段。唯一的变化是上下文里装的东西：不再只有你的问题，而是它自己一路留下的<b>足迹</b> —— 计划、申请单、工具结果、报错、反思。<b>模型在自己的足迹上持续决策。</b>这句话立刻解锁两个推论：① 足迹越走越长，窗口越来越挤（第 17 课）—— 长任务必须做记忆管理（自动摘要、外挂笔记），否则开头的目标会被挤出窗外，agent 当场"忘了自己是谁"；② 足迹里一旦混进一个错误，后面每一轮都会把它当真去读 —— 这是下一节"错误连乘"的种子。</p>
+    <p class="lead"><b>为什么非循环不可？</b>因为多步任务的关键信息是"走到那一步才出现"的。调研耳机：不先搜一次，不知道该查哪三款；不点开链接，不知道页面早已 404。再聪明的模型也无法在第 0 秒写出一份永不需要修改的完美计划 —— 计划赶不上变化时，唯一的办法是走一步、看一步、改一步。单次生成（哪怕思维链写得再长）给不了"看一步"的机会，循环可以。</p>
+    <p class="lead">把你围观 agent 干活时见过的现象，和循环的节拍连上线：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>你在产品里见过的现象</th><th>循环里的哪一拍</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Deep Research 一跑十几分钟，提示"已阅读 14 个来源"</b></td>
+            <td class="ex">循环跑到了第 N 轮 —— 每个来源都是一次完整的"行动 → 观察"</td>
+          </tr>
+          <tr>
+            <td><b>Claude Code 改完代码自己跑测试，测试红了又接着改</b></td>
+            <td class="ex">跑测试 = 行动；报错信息 = 观察；"我哪里改错了" = 反思 —— 一轮没过就再来一轮</td>
+          </tr>
+          <tr>
+            <td><b>屏幕上一行行滚过"正在思考… 正在调用工具…"</b></td>
+            <td class="ex">那不是装饰动画，是循环每一拍的实时日志 —— 产品把心跳播给你看</td>
+          </tr>
+          <tr>
+            <td><b>它跑到一半，你插一句"预算改成一千以内"，它真的会调整</b></td>
+            <td class="ex">你的话也成了上下文里的新足迹 —— 下一轮决策时被一并读到</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 可靠性瓶颈：连乘的暴政</h2>
+    <p class="lead">到这里 agent 听起来近乎完美：会规划、会动手、还会自我纠错。是时候泼冷水了 —— 这一节是全课最诚实的部分，也是你判断"agent 新闻是突破还是吹牛"的手感来源。</p>
+    <p class="lead">病根埋在第 14 课：模型的每一次输出都是概率采样，单步再准也只是"大概率对"。聊天里这无所谓 —— 错了你看得见，下一句就纠正。但 agent 把几十步串成一条链，<b>每一步都踩在上一步的输出上</b>，麻烦就来了：错误不是平均分摊的，而是<b>连乘累积</b>的。假设 agent 每走一步都有九成五的把握做对 —— 听起来已经相当可靠 —— 看看连续走下去，"全程一步不错"的把握还剩多少：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>连续步数</th><th>全程不出错的把握</th><th>体感</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="be">1 步</td><td>约 95%</td><td class="ex">很稳</td></tr>
+          <tr><td class="be">5 步</td><td>约 77%</td><td class="ex">开始心虚</td></tr>
+          <tr><td class="be">10 步</td><td>约 60%</td><td class="ex">将将过半</td></tr>
+          <tr><td class="be">20 步</td><td>约 36%</td><td class="ex">大概率中途已出错</td></tr>
+          <tr><td class="be">50 步</td><td>约 8%</td><td class="ex">几乎必然翻车</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote mt-14">这只是个示意模型 —— 真实任务里各步难度不同，有些错误还能被反思救回来。但量级感是对的：链路越长，"全程顺利"越接近抽奖。</p>
+    <p class="lead mt-14">错误累积之外，工程上还有三种常见死法 —— 每一种都在真实产品里反复上演：</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">死法一</div>
+        <div class="en"><b>死循环</b></div>
+        <div class="zh">同一个失败动作反复重试 —— 像游戏 NPC 卡在墙角原地踏步。烧着 token、产出为零；不设轮数上限，能一直卡到天亮。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">死法二</div>
+        <div class="en"><b>跑偏</b></div>
+        <div class="zh">第 3 轮一个小误读（把"降噪耳机"看成"降噪音箱"），被后面十几轮当成既定事实继承 —— 越走越远，交付时已不知所云。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">死法三</div>
+        <div class="en"><b>成本爆炸</b></div>
+        <div class="zh">每一轮都要把越滚越长的足迹整个重读一遍（第 17 课，按 token 计费）。轮数 × 足迹长度，账单飙升的速度远超直觉。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">当前工程界的三件套解法 —— 共同思路只有一个：<b>别让错误活过一轮，别让链条长到失控</b>：</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">解法一 · 人把关</div>
+        <div class="en">关键节点<b>人工确认</b></div>
+        <div class="zh">业内叫 human-in-the-loop：删文件、花钱、对外发送 —— 这些动作必须停下来等人签字。第 19 课的安全铁律，在 agent 里因步数变多而加倍重要。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">解法二 · 链条切短</div>
+        <div class="en"><b>子任务拆分</b></div>
+        <div class="zh">把 20 步长链切成几段 5 步短链，每段结束交付一个人能快速检查的小成果。连乘的链条越短，活下来的概率越高 —— 算术如此，没有魔法。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">解法三 · 当场验货</div>
+        <div class="en">可验证的<b>中间产物</b></div>
+        <div class="zh">让每一步产出"机器或人能立刻核对"的东西：写代码就跑测试，做调研就留来源链接。错误当场拦截，而不是带病再跑十几轮。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">这也顺手回答了一个现象级问题：<b>为什么写代码的 agent 最先成熟？</b>因为代码天生自带免费的验证器 —— 编译器和测试。每一轮"观察"拿到的都是客观硬信号，错误活不过一轮就被发现；改错了还能一键回滚。而"全自动炒股""全自动谈判"这类任务，反馈慢、噪声大、错误不可逆 —— 连乘衰减无人拦截。一条好用的经验法则：<b>结果越容易被便宜地验证、错误越可逆的领域，agent 越早能用。</b>下次看 agent 新品发布，先问这两个问题，比看 demo 视频靠谱。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：围观一个 agent 的一生</h2>
+    <p class="lead">任务剧本：<b>「调研三款降噪耳机并给出购买建议」</b>。上方是循环图，下方是 agent 的足迹日志 —— 每点一次「下一轮」，循环图点亮对应节拍，日志追加这一轮的思考 / 行动 / 观察。盯紧第 3、4 轮：一次 404 失败，和一次教科书式的反思绕路。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · Agent 循环：调研降噪耳机的 7 轮心跳</span>
+        <span class="demo-hint">蓝 = 思考 · 黄 = 行动 · 绿 = 观察 · 红 = 反思</span>
+      </div>
+      <div class="demo-body stack">
+        <div class="demo-stage">
+          <div class="demo-stage-col">
+            <svg id="ag-svg" viewBox="0 0 660 320" width="680" aria-label="Agent 循环图：目标进入后，模型在思考规划、行动调用工具、观察结果、反思修正之间循环，目标达成则退出到完成节点">
+              <defs>
+                <marker id="ag-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--fg-2)"/>
+                </marker>
+              </defs>
+
+              <!-- 连线（顺时针循环 + 进出口） -->
+              <g fill="none" stroke="var(--fg-2)" stroke-width="1.6">
+                <path d="M 116 42 C 170 40 210 46 248 54" marker-end="url(#ag-arr)"/>
+                <path d="M 388 74 C 450 92 502 110 532 132" marker-end="url(#ag-arr)"/>
+                <path d="M 514 186 C 480 220 442 244 392 256" marker-end="url(#ag-arr)"/>
+                <path d="M 250 262 C 195 256 140 226 110 190" marker-end="url(#ag-arr)"/>
+                <path d="M 98 134 C 95 95 170 68 248 58" marker-end="url(#ag-arr)"/>
+                <path d="M 388 50 C 440 38 480 36 534 38" stroke-dasharray="5 4" marker-end="url(#ag-arr)"/>
+              </g>
+              <text x="462" y="26" text-anchor="middle" font-size="9.5" fill="var(--fg-2)">目标达成 → 退出循环</text>
+
+              <!-- 循环中心 -->
+              <text id="ag-round" x="320" y="138" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fg-1)">—</text>
+              <text x="320" y="158" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">上一轮的输出</text>
+              <text x="320" y="172" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">= 下一轮的输入</text>
+
+              <!-- 节点 -->
+              <g class="ag-node" id="ag-goal">
+                <rect x="10" y="20" width="104" height="44" rx="12" fill="var(--bg-inset)" stroke="var(--hairline-strong)" stroke-width="1.4"/>
+                <text x="62" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">🎯 目标</text>
+                <text x="62" y="55" text-anchor="middle" font-size="9" fill="var(--fg-1)">一段 prompt 文字</text>
+              </g>
+              <g class="ag-node" id="ag-think">
+                <rect x="254" y="36" width="132" height="48" rx="12" fill="var(--sky-bg)" stroke="var(--sky)" stroke-width="1.4"/>
+                <text x="320" y="57" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">🧠 思考 / 规划</text>
+                <text x="320" y="73" text-anchor="middle" font-size="9" fill="var(--fg-1)">下一步干什么？</text>
+              </g>
+              <g class="ag-node" id="ag-done">
+                <rect x="540" y="20" width="106" height="44" rx="12" fill="var(--sage-bg)" stroke="var(--sage)" stroke-width="1.4"/>
+                <text x="593" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">✓ 完成</text>
+                <text x="593" y="55" text-anchor="middle" font-size="9" fill="var(--fg-1)">交付最终答案</text>
+              </g>
+              <g class="ag-node" id="ag-act">
+                <rect x="472" y="136" width="132" height="48" rx="12" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.4"/>
+                <text x="538" y="157" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">🔧 行动 · 调工具</text>
+                <text x="538" y="173" text-anchor="middle" font-size="9" fill="var(--fg-1)">开申请单 → 宿主执行</text>
+              </g>
+              <g class="ag-node" id="ag-reflect">
+                <rect x="36" y="136" width="132" height="48" rx="12" fill="var(--terracotta-bg)" stroke="var(--terracotta)" stroke-width="1.4"/>
+                <text x="102" y="157" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">🔄 反思修正</text>
+                <text x="102" y="173" text-anchor="middle" font-size="9" fill="var(--fg-1)">成了吗？要换路吗？</text>
+              </g>
+              <g class="ag-node" id="ag-observe">
+                <rect x="254" y="236" width="132" height="48" rx="12" fill="var(--sage-bg)" stroke="var(--sage)" stroke-width="1.4"/>
+                <text x="320" y="257" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg-0)">👀 观察结果</text>
+                <text x="320" y="273" text-anchor="middle" font-size="9" fill="var(--fg-1)">结果回填上下文</text>
+              </g>
+            </svg>
+            <div class="ag-caption" id="ag-caption"></div>
+            <div class="ag-log" id="ag-log" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="demo-side">
+          <div class="chips">
+            <button class="chip active" id="ag-next">下一轮 ▸</button>
+            <button class="chip" id="ag-reset">↺ 重置</button>
+            <span class="footnote" id="ag-progress" style="align-self:center"></span>
+          </div>
+          <h4 id="ag-title" style="margin-top:14px"></h4>
+          <p id="ag-desc"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">Agent 有自主意识 —— 它"想要"完成目标，失败了还"不甘心"地重试</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">"目标"只是你写进 prompt 的一段文字，"不达目的不罢休"是程序里写死的 while 循环</span></div>
+        </div>
+        <p class="why"><b>病因：</b>围观 agent 连续干活十几分钟、碰壁后还会换路重试，实在太像"有意志"了 —— 这是人类把目的性投射到一切持续运动的东西上的老习惯。两个拆穿它的实验：① 把 prompt 里的目标换成任意别的字符串，它对新目标同样"执着"，毫无偏好；② 让宿主程序不再把结果回填回去（拔掉循环），"意志"当场消失，它退化成普通的一问一答。执着是<b>架构的属性</b>，不是心灵的属性 —— 欲望写在你的 prompt 里，毅力写在工程师的 while 里。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">Agent 已经能全自动替代人类工作了</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">长链路成功率连乘衰减，目前最稳的形态是人机协作：AI 跑短链，人把关节点</span></div>
+        </div>
+        <p class="why"><b>病因：</b>你刷到的 agent 演示视频，都是从无数次运行里挑出的成功案例剪的 —— 失败的那些不会出现在你的时间线上。真实工程里，长任务依旧会死循环、跑偏、烧预算，所以成熟产品全都保留着人工确认闸（Claude Code 每次删文件、跑命令都要先问你，就是明证）。当下最能打的用法不是"全自动"，而是把 agent 当一个不知疲倦的实习生：你定方向、切任务、验收中间产物 —— 它出手速，你出判断。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 朋友说："我把聊天机器人接上了搜索工具，它现在算 agent 了吧？"用本课的四件套和"球在谁手里"标准，判断它还缺什么。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">对照四件套：有<b>大脑</b>（LLM）、有<b>手脚</b>（一个搜索工具）—— 但如果它仍是"你问一句、它搜一次、答完即止"，那就缺<b>循环</b>（自己决定下一步、连续跑多轮）和真正被用起来的<b>记忆</b>（在足迹上持续决策）。判断标准一句话：<b>球在谁手里</b> —— 每一步都要你发起，它就还是"带工具的 Chatbot"；你只给目标、它自己走完全程，才是 agent。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 你让 agent 整理"近五年新能源车销量数据"，发现它跑到第 15 轮还在反复访问同一个打不开的网站。诊断这是哪种死法，并用本课的三件套解法各开一条整改方案。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>诊断：死循环</b> —— 同一个失败动作反复重试，token 在烧、产出为零（演示剧本里的 agent 第 4 轮就换了搜索词，这只 agent 的"反思"拍失灵了）。<b>整改：</b>① <b>人工确认</b>：设轮数上限 + 连续失败若干次即暂停上报，让人来拍板换路；② <b>子任务拆分</b>：把"近五年"切成按年份的五段短任务，每段单独跑、单独验收，一段卡死不拖垮全局；③ <b>可验证中间产物</b>：要求每段先交付一张带来源链接的小表格 —— 数据是真是假、链接通不通，人和程序都能当场核对。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 为什么"AI 写代码"的 agent（Claude Code 这类）比"AI 全自动炒股"的 agent 先成熟？用"可验证的中间产物"和"错误连乘"两个概念解释。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">代码领域每一步都有<b>便宜又客观的验证器</b>：编译器、测试、报错信息 —— "观察"这一拍拿到的是硬信号，错误活不过一轮就被发现，相当于把每步成功率拉高、把连乘的链条切短；而且改错了能一键回滚（版本控制），错误<b>可逆</b>。炒股则相反：反馈慢（要等市场走完才知对错）、噪声大（涨了也未必是你判断对）、错误不可逆（亏掉的钱回不来）—— 连乘衰减一路无人拦截。经验法则：<b>验证越便宜、错误越可逆的领域，agent 越早成熟。</b></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="19-function-calling.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">19 Function Calling：AI 长出双手</div>
+    </a>
+    <a class="card next" href="21-diffusion-models.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">21 文生图：扩散模型的去噪魔法</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- Agent 循环步进演示 ---------- */
+(function () {
+  var SCRIPT = [
+    {
+      cap: '① 感知与规划：把大目标拆成子任务清单',
+      t: '第 1 轮 · 规划也是接龙出来的',
+      d: '"拆成三个子任务"看着像深思熟虑，其实就是一次普通的文本生成（第 16 课思维链的近亲）。计划写进上下文，立刻变成后面每一轮都会读到的路标。',
+      seq: ['think', 'act', 'observe'],
+      lines: [
+        ['think', '目标：「调研三款降噪耳机并给出购买建议」。拆成三个子任务：① 找出当前口碑前三的型号 ② 逐一收集价格与评测要点 ③ 汇总对比写建议。先做 ①。'],
+        ['act', 'search("降噪耳机 口碑排行 评测")', true],
+        ['obs', '多篇文章反复点名三款：A 牌旗舰款、B 牌轻巧款、C 牌性价比款。子任务 ① 完成 ✓']
+      ]
+    },
+    {
+      cap: '标准一轮：思考 → 行动 → 观察，足迹 +3 条',
+      t: '第 2 轮 · 标准节拍',
+      d: '思考 → 开申请单（第 19 课原封不动）→ 宿主执行 → 结果回填。注意日志里的"要点入笔记"：工作记忆在累积 —— 这就是四件套里的"工作台"（第 17 课）。',
+      seq: ['think', 'act', 'observe'],
+      lines: [
+        ['think', '进入子任务 ②，先查 A 牌旗舰款 —— 需要价格档位、降噪、佩戴、续航四项要点。'],
+        ['act', 'open_page("A牌旗舰款深度评测.html")', true],
+        ['obs', '页面读取成功。要点入笔记：降噪最强、佩戴舒适、约两千元档；短板是机身偏重。']
+      ]
+    },
+    {
+      cap: '观察到失败：404 —— 失败信息也会回填上下文',
+      t: '第 3 轮 · 现实开始反击',
+      d: '404 了。这正是循环必须存在的理由：页面打不打得开，是"走到这一步才知道"的信息，事先写好的完美计划料不到。失败结果照样回填进上下文 —— 关键看它下一轮怎么办。',
+      seq: ['think', 'act', 'observe'],
+      lines: [
+        ['think', '如法炮制，查 B 牌轻巧款的评测页。'],
+        ['act', 'open_page("B牌轻巧款评测.html")', true],
+        ['obs', '请求失败：404，页面不存在。这条路走不通。', false, true]
+      ]
+    },
+    {
+      cap: '反思修正：读着失败足迹，换一条路再来',
+      t: '第 4 轮 · 反思修正（本剧高光）',
+      d: '失败记录躺在上下文里，模型读着自己的失败足迹，生成了新策略 —— 换搜索词绕路，全程无人介入。这就是"上一轮的输出成为下一轮的输入"最值钱的一幕：报错也是养料。',
+      seq: ['reflect', 'act', 'observe'],
+      lines: [
+        ['ref', '上一轮失败 —— 别再撞同一堵墙。换策略：不开具体页面，改用搜索词直接要结论。'],
+        ['act', 'search("B牌轻巧款 降噪耳机 评测 优缺点")', true],
+        ['obs', '搜索摘要给出要点：降噪接近 A、重量轻不少、约一千五百元档；短板是续航一般。进度 2/3。']
+      ]
+    },
+    {
+      cap: '上一轮的成功策略被继承 —— 足迹在发挥作用',
+      t: '第 5 轮 · 经验被继承',
+      d: '注意措辞："沿用刚验证过的策略"。第 4 轮的成功经验也留在足迹里，影响了这一轮的选择 —— agent 在任务内是会"长记性"的。但只在本次上下文内有效，关窗即忘（第 17 课）。',
+      seq: ['think', 'act', 'observe'],
+      lines: [
+        ['think', '还差 C 牌性价比款。沿用刚验证过的搜索词策略，更稳。'],
+        ['act', 'search("C牌性价比款 降噪耳机 评测")', true],
+        ['obs', '要点：降噪弱一档、几百元档，通勤场景够用。子任务 ② 完成（3/3）✓']
+      ]
+    },
+    {
+      cap: '交付前自查：可验证的中间产物',
+      t: '第 6 轮 · 自查 = 可验证的中间产物',
+      d: '交付前先核对清单 —— 这就是上一节的解法三：让中间成果可检查，错误当场拦截，而不是带病冲到终点。很多 agent 框架会把"自查"固定写进流程里。',
+      seq: ['think', 'act', 'observe'],
+      lines: [
+        ['think', '进入子任务 ③。先自查：三款 × 四项要点（价格 / 降噪 / 佩戴 / 续航）的笔记是否齐全？'],
+        ['act', 'read_notes() → 逐格核对清单', true],
+        ['obs', '12 格信息全部在位，无缺漏 —— 可以写结论了。']
+      ]
+    },
+    {
+      cap: '判断目标达成 → 退出循环，任务结束 ✓',
+      t: '第 7 轮 · 判断完成，退出循环',
+      d: '"目标达成"同样是模型生成的一个判断 —— 它也可能判错，所以成熟产品常在这里设人工验收。循环退出，球回到你手里。复盘这一生：7 轮、5 次工具调用、1 次失败重试。',
+      seq: ['think', 'act', 'observe', 'done'],
+      lines: [
+        ['think', '信息齐全，目标可以收口：生成购买建议，结束任务。'],
+        ['act', '不再调用工具 —— 直接生成最终回答（这一步就是普通的文本生成）'],
+        ['obs', '建议已交付：预算充足选 A（降噪最强）/ 通勤优先选 B（轻便均衡）/ 预算有限选 C（够用就好）。目标达成 → 退出循环 ✓']
+      ]
+    }
+  ];
+
+  var CAP0 = '目标已写进上下文，工具清单已就位 —— 等待第一轮心跳';
+  var INFO0 = {
+    t: '开局：目标进场',
+    d: '此刻"目标"只是一段写进上下文的文字。宿主还把工具清单（search / open_page / read_notes）一并发给了模型（第 19 课）。接下来的每一轮，都是同一台接龙机器在读上下文、续写下一段 —— 点「下一轮」开始。'
+  };
+  var TOTAL = SCRIPT.length;
+  var TAG = { think: ['lt-think', '思考'], act: ['lt-act', '行动'], obs: ['lt-obs', '观察'], ref: ['lt-ref', '反思'] };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var nodes = { goal: $('ag-goal'), think: $('ag-think'), act: $('ag-act'), observe: $('ag-observe'), reflect: $('ag-reflect'), done: $('ag-done') };
+  var logEl = $('ag-log'), capEl = $('ag-caption'), titleEl = $('ag-title'), descEl = $('ag-desc'),
+      roundEl = $('ag-round'), progEl = $('ag-progress'), nextBtn = $('ag-next'), resetBtn = $('ag-reset');
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var step = 0;
+  var timers = [];
+
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function unlitAll() { Object.keys(nodes).forEach(function (k) { nodes[k].classList.remove('lit'); }); }
+
+  function lightSeq(seq) {
+    clearTimers();
+    unlitAll();
+    if (reduced) {
+      seq.forEach(function (k) { nodes[k].classList.add('lit'); });
+      return;
+    }
+    seq.forEach(function (k, i) {
+      timers.push(setTimeout(function () { nodes[k].classList.add('lit'); }, i * 450));
+    });
+  }
+
+  function appendLog(s, idx) {
+    var head = document.createElement('div');
+    head.className = 'log-round';
+    head.textContent = '第 ' + idx + ' 轮';
+    logEl.appendChild(head);
+    s.lines.forEach(function (l) {
+      var row = document.createElement('div');
+      row.className = 'log-line' + (l[3] ? ' fail' : '');
+      var tag = document.createElement('span');
+      tag.className = 'lt ' + TAG[l[0]][0];
+      tag.textContent = TAG[l[0]][1];
+      var txt = document.createElement('span');
+      if (l[2]) { txt.className = 'mono'; }
+      txt.textContent = l[1];
+      row.appendChild(tag);
+      row.appendChild(txt);
+      logEl.appendChild(row);
+    });
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function renderPanel() {
+    var info = step === 0 ? INFO0 : SCRIPT[step - 1];
+    capEl.textContent = step === 0 ? CAP0 : SCRIPT[step - 1].cap;
+    titleEl.textContent = info.t;
+    descEl.textContent = info.d;
+    roundEl.textContent = step === 0 ? '—' : '第 ' + step + ' 轮';
+    progEl.textContent = '第 ' + step + ' / ' + TOTAL + ' 轮';
+    nextBtn.disabled = step >= TOTAL;
+  }
+
+  function resetLog() {
+    logEl.innerHTML = '';
+    var ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.textContent = '（足迹日志为空 —— agent 还没开始干活）';
+    logEl.appendChild(ph);
+  }
+
+  function start() {
+    clearTimers();
+    step = 0;
+    resetLog();
+    unlitAll();
+    nodes.goal.classList.add('lit');
+    renderPanel();
+  }
+
+  nextBtn.addEventListener('click', function () {
+    if (step >= TOTAL) { return; }
+    step++;
+    var s = SCRIPT[step - 1];
+    if (step === 1) { logEl.innerHTML = ''; }
+    appendLog(s, step);
+    lightSeq(s.seq);
+    renderPanel();
+  });
+  resetBtn.addEventListener('click', start);
+
+  if (reduced) {
+    /* 减少动态：直接显示完成态 */
+    resetLog();
+    logEl.innerHTML = '';
+    SCRIPT.forEach(function (s, i) { appendLog(s, i + 1); });
+    step = TOTAL;
+    unlitAll();
+    nodes.done.classList.add('lit');
+    renderPanel();
+    capEl.textContent = '已直接显示完成态：7 轮足迹全部展开（系统设置了减少动态效果）';
+  } else {
+    start();
+  }
+})();
+</script>
+
+</body>
+</html>

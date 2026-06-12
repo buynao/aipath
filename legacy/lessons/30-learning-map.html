@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 30 课 · 终点亦起点：AI 进阶学习地图 — 拓智</title>
+<meta name="description" content="论文怎么读、社区在哪里、方向怎么选 —— 用一张交互知识地图复盘 30 课，再带走四条进阶路线、五篇经典论文和五个动手项目。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：登山知识地图 ---------- */
+.map-node { cursor: pointer; }
+.map-node .c { fill: var(--bg-card); stroke: var(--fg-2); stroke-width: 1.5; transition: fill 0.2s ease, stroke 0.2s ease; }
+.map-node .hit { fill: transparent; stroke: none; }
+.map-node text { pointer-events: none; }
+.map-node .num { font-weight: 700; fill: var(--fg-1); }
+.map-node .lbl { font-weight: 700; }
+.map-node.todo { opacity: 0.55; }
+.map-node.done .c { fill: var(--sage); stroke: var(--sage); }
+.map-node.active .c { fill: var(--accent); stroke: var(--accent); }
+.map-node.done .num, .map-node.active .num { fill: var(--on-accent); }
+#trail-progress { transition: stroke-dashoffset 0.7s ease; }
+#summit { cursor: pointer; }
+#summit text { pointer-events: none; }
+#summit .pole { stroke: var(--fg-2); transition: stroke 0.2s ease; }
+#summit.active .pole { stroke: var(--fg-0); }
+/* 一句话复盘 */
+.recap { font-size: 17px; line-height: 2; }
+.recap b { border-bottom: 2px solid var(--sage); }
+.recap .ln { font-size: 12px; color: var(--fg-2); }
+/* 路线选择 */
+#routes .use-card { cursor: pointer; transition: opacity 0.2s ease, border-color 0.2s ease; }
+#routes .use-card.dim { opacity: 0.45; }
+#routes .use-card.lit { border-color: var(--sage); }
+.acts { list-style: none; margin: 10px 0 0; padding: 0; }
+.acts li { position: relative; padding-left: 20px; margin-top: 8px; font-size: 14px; color: var(--fg-1); }
+.acts li::before { content: "→"; position: absolute; left: 0; color: var(--sage); font-weight: 700; }
+#route-hint { margin-top: 14px; font-size: 14px; color: var(--fg-1); }
+#route-hint b { color: var(--sage); }
+@media (prefers-reduced-motion: reduce) {
+  #trail-progress, .map-node .c, #routes .use-card { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第六阶段 · 实战篇</span> / <span>第 30 课</span>
+    </div>
+    <h1>终点亦起点：AI 进阶学习地图</h1>
+    <p class="subhead">论文怎么读、社区在哪里、方向怎么选 —— 把这门课变成你 AI 之旅的第一级台阶，而非终点。</p>
+    <div class="meta">
+      <span class="pill pill-ink">入门</span>
+      <span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span>
+      <span class="footnote">约 20 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>用一张知识地图复盘 30 课：每个概念落在哪一格、彼此怎么连成一条路</div>
+      <div class="goal-item"><span class="tick">✓</span>从研究 / 工程 / 产品 / 观察者四条路线里选定下一步，拿到具体行动清单</div>
+      <div class="goal-item"><span class="tick">✓</span>掌握读 AI 论文的正确姿势：先摘要、后看图 —— 外加五篇经典按图索骥</div>
+      <div class="goal-item"><span class="tick">✓</span>带走五个由易到难的动手项目，从性格化 CLI 到给开源项目提 PR</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：三十课，其实是一条路</h2>
+    <p class="lead">回头看，这门课从头到尾只讲了一个故事 —— 一个只会加权打分的小零件，如何一步步长成会替你干活的智能体。先对比一下出发前和现在的你。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag">第 1 课的你</div>
+        <div class="big">每个 AI 名词都是<span class="gap">噪音</span></div>
+        <div class="note">Transformer、RAG、RLHF、Agent……听起来全是别人世界的黑话，新闻越刷越焦虑。</div>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag">第 30 课的你</div>
+        <div class="big">每个名词都落在<span class="hl">地图的某一格</span></div>
+        <div class="note">新模型发布，你会先问：变的是架构、训练方法，还是应用层的包装？—— 这就是地图给你的底气。</div>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-top: 14px;">
+      <p class="recap">从一个会打分的<b>神经元</b><span class="ln">（3）</span>出发，学会<b>下山式自我纠错</b><span class="ln">（4）</span>；让词语彼此<b>注意</b><span class="ln">（9）</span>，再组装成 <b>Transformer</b><span class="ln">（10）</span>；用整个互联网玩<b>文字接龙</b><span class="ln">（12）</span>，又被<b>对齐调教</b>出人样<span class="ln">（13）</span>；你学会与它<b>对话</b><span class="ln">（16）</span>，给它外挂<b>知识</b><span class="ln">（18 / 28）</span>，交给它<b>工具与任务</b><span class="ln">（20）</span>；最后，你<b>亲手把代码跑通</b><span class="ln">（26–28）</span>。</p>
+      <p class="footnote" style="margin-top: 10px;">这一句话就是 30 课的全部 —— 也是你现在拥有的完整心智地图。下面把它画出来。</p>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：三十课登山图</h2>
+    <p class="lead">六个阶段化作一条上山的路，山顶的旗帜上写着这门课对你的全部期待。<b>点击任意里程碑</b>，回看你在那一站学会了什么。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 从神经元到构建者</span>
+        <span class="demo-hint">点击山路上的里程碑或下方按钮</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="map" viewBox="0 0 480 580" width="400" aria-label="六个阶段的里程碑串成一条上山的路，山顶插着写有构建者的旗帜">
+            <!-- 山路：底图虚线 + 进度实线 -->
+            <path id="trail-base" d="M150,525 Q280,538 340,448 Q255,420 150,365 Q235,332 340,285 Q255,252 150,200 Q240,162 330,115 Q362,96 370,62"
+              fill="none" stroke="var(--fg-2)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="1 8" stroke-linecap="round"/>
+            <path id="trail-progress" d="M150,525 Q280,538 340,448 Q255,420 150,365 Q235,332 340,285 Q255,252 150,200 Q240,162 330,115 Q362,96 370,62"
+              fill="none" stroke="var(--sage)" stroke-width="4" stroke-linecap="round"/>
+
+            <!-- 山顶：旗帜「构建者」 -->
+            <g id="summit">
+              <circle class="hit" cx="385" cy="44" r="42" fill="transparent"/>
+              <circle cx="370" cy="62" r="5.5" fill="var(--fg-2)"/>
+              <line class="pole" x1="370" y1="60" x2="370" y2="18" stroke-width="2"/>
+              <rect x="370" y="14" width="58" height="22" rx="3" fill="var(--terracotta)"/>
+              <text x="399" y="29.5" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bg-0)">构建者</text>
+            </g>
+
+            <!-- 里程碑 1 · 直觉篇 -->
+            <g class="map-node" data-i="0">
+              <circle class="hit" cx="150" cy="525" r="30"/>
+              <circle class="c" cx="150" cy="525" r="15"/>
+              <text class="num" x="150" y="529.5" text-anchor="middle" font-size="13">1</text>
+              <text class="lbl" x="124" y="519" text-anchor="end" font-size="12.5" fill="var(--fg-0)">直觉篇 · 1–5</text>
+              <text class="kws" x="124" y="534" text-anchor="end" font-size="9.5" fill="var(--fg-2)">三个圈 · 喂数据 · 神经元</text>
+              <text class="kws" x="124" y="547" text-anchor="end" font-size="9.5" fill="var(--fg-2)">梯度下山 · 过拟合</text>
+            </g>
+            <!-- 里程碑 2 · 原理篇 -->
+            <g class="map-node" data-i="1">
+              <circle class="hit" cx="340" cy="448" r="30"/>
+              <circle class="c" cx="340" cy="448" r="15"/>
+              <text class="num" x="340" y="452.5" text-anchor="middle" font-size="13">2</text>
+              <text class="lbl" x="366" y="442" text-anchor="start" font-size="12.5" fill="var(--fg-0)">原理篇 · 6–10</text>
+              <text class="kws" x="366" y="457" text-anchor="start" font-size="9.5" fill="var(--fg-2)">反向传播 · CNN · 词向量</text>
+              <text class="kws" x="366" y="470" text-anchor="start" font-size="9.5" fill="var(--fg-2)">注意力 · Transformer</text>
+            </g>
+            <!-- 里程碑 3 · 大模型篇 -->
+            <g class="map-node" data-i="2">
+              <circle class="hit" cx="150" cy="365" r="30"/>
+              <circle class="c" cx="150" cy="365" r="15"/>
+              <text class="num" x="150" y="369.5" text-anchor="middle" font-size="13">3</text>
+              <text class="lbl" x="124" y="359" text-anchor="end" font-size="12.5" fill="var(--fg-0)">大模型篇 · 11–15</text>
+              <text class="kws" x="124" y="374" text-anchor="end" font-size="9.5" fill="var(--fg-2)">Token · 预训练 · RLHF</text>
+              <text class="kws" x="124" y="387" text-anchor="end" font-size="9.5" fill="var(--fg-2)">温度采样 · Scaling Laws</text>
+            </g>
+            <!-- 里程碑 4 · 应用篇 -->
+            <g class="map-node" data-i="3">
+              <circle class="hit" cx="340" cy="285" r="30"/>
+              <circle class="c" cx="340" cy="285" r="15"/>
+              <text class="num" x="340" y="289.5" text-anchor="middle" font-size="13">4</text>
+              <text class="lbl" x="366" y="279" text-anchor="start" font-size="12.5" fill="var(--fg-0)">应用篇 · 16–20</text>
+              <text class="kws" x="366" y="294" text-anchor="start" font-size="9.5" fill="var(--fg-2)">提示词 · 上下文 · RAG</text>
+              <text class="kws" x="366" y="307" text-anchor="start" font-size="9.5" fill="var(--fg-2)">工具调用 · Agent</text>
+            </g>
+            <!-- 里程碑 5 · 前沿篇 -->
+            <g class="map-node" data-i="4">
+              <circle class="hit" cx="150" cy="200" r="30"/>
+              <circle class="c" cx="150" cy="200" r="15"/>
+              <text class="num" x="150" y="204.5" text-anchor="middle" font-size="13">5</text>
+              <text class="lbl" x="124" y="194" text-anchor="end" font-size="12.5" fill="var(--fg-0)">前沿篇 · 21–25</text>
+              <text class="kws" x="124" y="209" text-anchor="end" font-size="9.5" fill="var(--fg-2)">扩散模型 · 多模态 · 推理</text>
+              <text class="kws" x="124" y="222" text-anchor="end" font-size="9.5" fill="var(--fg-2)">MCP · 开源版图</text>
+            </g>
+            <!-- 里程碑 6 · 实战篇 -->
+            <g class="map-node" data-i="5">
+              <circle class="hit" cx="330" cy="115" r="30"/>
+              <circle class="c" cx="330" cy="115" r="15"/>
+              <text class="num" x="330" y="119.5" text-anchor="middle" font-size="13">6</text>
+              <text class="lbl" x="356" y="109" text-anchor="start" font-size="12.5" fill="var(--fg-0)">实战篇 · 26–30</text>
+              <text class="kws" x="356" y="124" text-anchor="start" font-size="9.5" fill="var(--fg-2)">API · 本地模型 · RAG</text>
+              <text class="kws" x="356" y="137" text-anchor="start" font-size="9.5" fill="var(--fg-2)">评估安全 · 学习地图</text>
+            </g>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="map-chips">
+            <button class="chip" data-i="0">直觉</button>
+            <button class="chip" data-i="1">原理</button>
+            <button class="chip" data-i="2">大模型</button>
+            <button class="chip" data-i="3">应用</button>
+            <button class="chip" data-i="4">前沿</button>
+            <button class="chip" data-i="5">实战</button>
+            <button class="chip" data-i="6">🏁 山顶</button>
+          </div>
+          <h4 id="ms-title"></h4>
+          <div class="period" id="ms-period"></div>
+          <p id="ms-desc"></p>
+          <div class="tags" id="ms-tags"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🧭 选一条路：四条进阶路线</h2>
+    <p class="lead">学完地图，下一步往哪走取决于你想成为什么样的人。先点一个最像你的描述，看看推荐路线 —— 路线之间不互斥，也随时可以换。</p>
+    <div class="chips" id="route-chips" style="margin-bottom: 14px;">
+      <button class="chip" data-route="research">我爱刨根问底</button>
+      <button class="chip" data-route="build">我想做出东西</button>
+      <button class="chip" data-route="product">我想解决业务问题</button>
+      <button class="chip" data-route="watch">我只想看懂不被忽悠</button>
+    </div>
+    <div class="use-grid cols-2" id="routes">
+      <div class="card use-card" data-route="research">
+        <div class="label">研究路线 · Researcher</div>
+        <div class="en">🔬 想弄懂<b>为什么有效</b></div>
+        <ul class="acts">
+          <li>补数学到"看懂论文符号"为止：线性代数 + 概率统计，不必刷题</li>
+          <li>跟 Karpathy 的《Neural Networks: Zero to Hero》视频，亲手从零实现一遍反向传播（对照第 4、6 课）</li>
+          <li>开始读经典论文：就从下面书单第一篇读起，先摘要后看图</li>
+        </ul>
+      </div>
+      <div class="card use-card" data-route="build">
+        <div class="label">工程路线 · Builder</div>
+        <div class="en">🛠️ 想做出<b>能跑的东西</b></div>
+        <ul class="acts">
+          <li>把 26–28 课的作业合并成一个完整项目：界面、错误处理、日志，一个都不能省</li>
+          <li>学评测与部署：用第 29 课的方法给自己的应用建一套评测集，再把它放上服务器</li>
+          <li>跟进框架与 MCP 生态（第 24 课），让应用接上真实世界的工具</li>
+        </ul>
+      </div>
+      <div class="card use-card" data-route="product">
+        <div class="label">产品路线 · Product</div>
+        <div class="en">📦 想用 AI <b>解决真问题</b></div>
+        <ul class="acts">
+          <li>找一个身边的真实场景 —— 客服、内容生产、内部流程 —— 两周内做出能演示的 MVP</li>
+          <li>练习在 PRD 里写清"AI 能做什么 / 不能做什么"：边界感是 AI 产品人最稀缺的能力</li>
+          <li>用第 29 课的评估思路，把"好用"定义成可测量的指标</li>
+        </ul>
+      </div>
+      <div class="card use-card" data-route="watch">
+        <div class="label">观察者路线 · Observer</div>
+        <div class="en">🔭 想持续<b>看懂、不被忽悠</b></div>
+        <ul class="acts">
+          <li>建立可靠信源：各家官方博客、论文速递、高质量技术社区，每周固定扫一遍</li>
+          <li>用第 23、25 课的眼光过滤噪音：先问"它落在地图哪一格？改进的是哪一层？"</li>
+          <li>每月把一个新名词讲给完全不懂的朋友 —— 讲不清楚，就回地图补那一课</li>
+        </ul>
+      </div>
+    </div>
+    <p id="route-hint">点一条路线看看 —— 没有标准答案，而且路线随时可以换。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🎒 行囊：五篇论文与五个项目</h2>
+    <p class="lead">读论文不是从第一个字啃到最后一个字。正确姿势：<b>先读摘要（abstract），再把每张图看懂</b> —— 一篇论文八成的信息在这两处；公式留到最后，啃不动也不影响主线。下面五篇按时间排序，串起来正好是大模型的进化史。</p>
+    <div class="card row-list">
+      <div class="example">
+        <div class="en">Attention Is All You Need <span style="color: var(--fg-2);">（2017）</span><span class="pill pill-ink" style="margin-left: 8px;">第 9–10 课</span></div>
+        <div class="zh">它回答了：不用循环网络、只靠注意力，能不能搭出更强的语言模型？答案叫 Transformer —— 你学过的第 9、10 课就是它的"人话版"。</div>
+      </div>
+      <div class="example">
+        <div class="en">Scaling Laws for Neural Language Models <span style="color: var(--fg-2);">（2020）</span><span class="pill pill-ink" style="margin-left: 8px;">第 15 课</span></div>
+        <div class="zh">它回答了：把模型做大到底值不值？性能随参数、数据、算力按什么规律增长？"大力出奇迹"从玄学变成了可预测的工程。</div>
+      </div>
+      <div class="example">
+        <div class="en">Language Models are Few-Shot Learners <span style="color: var(--fg-2);">（GPT-3，2020）</span><span class="pill pill-ink" style="margin-left: 8px;">第 12 · 16 课</span></div>
+        <div class="zh">它回答了：模型足够大之后，能不能不再微调、只在提示里给几个例子就学会新任务？提示工程的时代由此开始。</div>
+      </div>
+      <div class="example">
+        <div class="en">Training LMs to Follow Instructions <span style="color: var(--fg-2);">（InstructGPT，2022）</span><span class="pill pill-ink" style="margin-left: 8px;">第 13 课</span></div>
+        <div class="zh">它回答了：怎么把"只会接龙"的 GPT-3 调教成"听得懂人话"的助手？SFT + RLHF 的成名作，ChatGPT 的直系前身。</div>
+      </div>
+      <div class="example">
+        <div class="en">Chain-of-Thought Prompting <span style="color: var(--fg-2);">（2022）</span><span class="pill pill-ink" style="margin-left: 8px;">第 16 · 23 课</span></div>
+        <div class="zh">它回答了：为什么让模型"一步一步想"，它就能解出原本不会的题？推理模型这条线的起点。</div>
+      </div>
+    </div>
+    <p class="lead" style="margin-top: 28px;">看十个教程，不如跑通一个项目。下面五个由易到难，每完成一个，就把它写进你的作品集。</p>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">①</span><span><b>性格化聊天 CLI</b>（基于 26 课）—— 给 30 行代码加上系统提示词和对话记忆，做一个有脾气的命令行伙伴。一个周末足够。</span></div>
+      <div class="goal-item"><span class="tick">②</span><span><b>本地模型 + 语音的家庭助手</b>（基于 27 课）—— 用 Ollama 跑本地模型，接上语音转文字，全程不联网、不花钱。</span></div>
+      <div class="goal-item"><span class="tick">③</span><span><b>个人笔记 RAG 问答</b>（基于 28 课）—— 把代码对准你自己的笔记库，反复调切块和检索，直到"真的好用" —— 这一步比想象中难。</span></div>
+      <div class="goal-item"><span class="tick">④</span><span><b>带工具的周报 Agent</b>（基于 19、20 课）—— 让它自己读 git 提交记录、查日历，每周五自动生成周报草稿。</span></div>
+      <div class="goal-item"><span class="tick">⑤</span><span><b>给开源 MCP server 提一个 PR</b>（基于 24 课）—— 修一个 bug 或加一个小工具。生态不是用来围观的，merge 的那一刻你就是贡献者。</span></div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见迷茫：三个最常被问到的问题</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 数学不好，还能深入学 AI 吗？</div>
+        <details>
+          <summary>看一个真诚的回答</summary>
+          <div class="ans"><b>能，看路线。</b>工程和产品路线几乎不卡数学：调 API、做 RAG、写评测，用到的数学不超过中学水平。只有研究路线需要线代和概率 —— 而且完全可以"用到哪、补到哪"。真正危险的不是数学差，而是把"先学完数学"当成永远不出发的理由。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 现在才认真入场，是不是太晚了？</div>
+        <details>
+          <summary>看一个真诚的回答</summary>
+          <div class="ans"><b>模型层确实晚了，应用层才刚开始。</b>训练前沿大模型的门槛已高到只剩少数玩家，但"用 AI 把各行各业重做一遍"的大爆发刚刚启动 —— 绝大多数行业还没有被认真做过。况且，学完这 30 课的你，对 AI 的理解已经超过绝大多数人。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 要不要辞职全职转行 AI？</div>
+        <details>
+          <summary>看一个真诚的回答</summary>
+          <div class="ans"><b>先别裸辞。</b>用业余时间做完上面五个项目里的两三个，验证两件事：你是否真的享受这个过程？你的产出是否有人愿意用？两个答案都是"是"，再谈转行 —— 那时你手里已经有作品集，转行就不再是一场赌博。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 复盘题：合上这一页，按顺序说出六个阶段各自解决什么问题（每个阶段一句话）。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>直觉篇</b>——AI 是什么、靠什么变聪明；<b>原理篇</b>——支撑深度学习的四大机制；<b>大模型篇</b>——一个 LLM 从生数据到 ChatGPT 的全程；<b>应用篇</b>——提示词、RAG、工具、Agent 的应用层技术栈；<b>前沿篇</b>——扩散、多模态、推理、MCP 这些新闻热词；<b>实战篇</b>——亲手把概念写成能跑的代码。说得出来，地图就真的长在你脑子里了。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 定位题：新闻标题《某公司发布新模型，靠"测试时计算"大幅提升数学能力》—— 它落在地图哪一格？你会接着问哪两个问题？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">落在<b>第五阶段第 23 课：推理模型</b> —— 用测试时算力换智力、先打草稿再回答的路线。值得追问：① 用什么基准测试证明"大幅提升"？有没有第三方复现？（第 29 课的评估眼光）② 相比上一代是数量级跃迁，还是几个百分点的微调？</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 行动题：从五个项目里挑一个，写下"本周末能完成的最小一步"。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">没有标准答案，给一个示例：选项目① —— 周六上午申请 API key、跑通 26 课的 30 行代码；下午加一个系统提示词，把它变成"毒舌影评人"。检验标准只有一条：<b>这一步必须小到两小时内能看到结果</b> —— 看得到结果，才有下一步。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🏁 写在最后</h2>
+    <div class="card card-pad">
+      <p style="font-size: 16px; line-height: 1.9;">这门课没有把你变成"懂 AI 的人" —— 没有任何一门课能做到。它给你的是另一样东西：<b>从今天起，你不再害怕任何 AI 新名词。</b>新东西出来，你知道它落在地图的哪一格，知道该问什么问题，知道去哪里验证。</p>
+      <p style="font-size: 16px; line-height: 1.9; margin-top: 12px;">最后只剩一句话：<b>动手 &gt; 围观，构建 &gt; 收藏。</b>收藏夹里的第 100 篇教程，不如亲手跑通的第 1 个程序。山顶的旗帜上写着"构建者" —— 去把它变成你的名字。</p>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="29-evals-and-safety.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">29 评估与安全：AI 的体检与红线</div>
+    </a>
+    <a class="card next" href="../index.html#path">
+      <div class="dir">下一步 →</div>
+      <div class="name">完成全部课程 🎉 返回目录</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 登山知识地图 ---------- */
+(function () {
+  const STAGES = [
+    {
+      title: '第一阶段 · 直觉篇',
+      period: '第 1–5 课 · 不写代码、不碰公式',
+      desc: '你在这一站学会了：AI ⊃ 机器学习 ⊃ 深度学习的三圈关系（1），"从数据找规则"这一根本转变（2）；亲手拨过一个神经元的权重（3），看懂训练就是在损失地形上摸索下山（4），还认识了过拟合 —— AI"背答案"的噩梦（5）。',
+      tags: ['三个圈', '喂数据', '神经元', '梯度下山', '过拟合'],
+    },
+    {
+      title: '第二阶段 · 原理篇',
+      period: '第 6–10 课 · 深度学习四大基石',
+      desc: '多层网络靠反向传播把错误一层层"追责"回去（6）；CNN 用滑动小窗看懂图像（7）；词语变成向量、住进语义空间（8）；注意力让每个词环顾四周（9）—— 最后这一切被组装成 Transformer 流水线（10）。',
+      tags: ['反向传播', 'CNN', 'Embedding', '注意力', 'Transformer'],
+    },
+    {
+      title: '第三阶段 · 大模型篇',
+      period: '第 11–15 课 · LLM 的诞生全程',
+      desc: '大模型眼里只有 token（11）；九成能力来自"预测下一个词"的万亿次接龙（12）；SFT 和 RLHF 把接龙机器调教出"人样"（13）；温度旋钮控制严谨与放飞（14）；Scaling Laws 解释了"大力出奇迹"（15）。',
+      tags: ['Token', '预训练', 'RLHF', '温度采样', 'Scaling Laws'],
+    },
+    {
+      title: '第四阶段 · 应用篇',
+      period: '第 16–20 课 · 应用层技术栈',
+      desc: '提示词是有原理的工程而非玄学（16）；上下文窗口是 AI 唯一的工作记忆（17）；RAG 给它外挂知识库（18）；Function Calling 让它长出双手（19）；装上"感知—规划—行动"的循环，它就成了 Agent（20）。',
+      tags: ['提示工程', '上下文', 'RAG', '工具调用', 'Agent'],
+    },
+    {
+      title: '第五阶段 · 前沿篇',
+      period: '第 21–25 课 · 看懂新闻里的热词',
+      desc: '扩散模型从纯噪点里一步步"擦"出一幅画（21）；多模态把图像声音也变成 token（22）；推理模型先打草稿再回答（23）；MCP 是 AI 应用的"USB 接口"（24）；开源闭源版图教你按需选型（25）。',
+      tags: ['扩散模型', '多模态', '推理模型', 'MCP', '开源 / 闭源'],
+    },
+    {
+      title: '第六阶段 · 实战篇',
+      period: '第 26–30 课 · 从学习者到构建者',
+      desc: '你用 30 行代码调通了第一个 API（26），在自己电脑上跑起开源模型（27），把 RAG 流程图写成真代码（28），懂得了上线前的体检与红线（29）—— 现在你正站在第 30 课，山顶就在眼前。',
+      tags: ['API 调用', 'Ollama', 'RAG 实战', '评估与安全'],
+    },
+    {
+      title: '🏁 构建者',
+      period: '三十课 · 一条完整走通的路',
+      desc: '六个阶段、三十课、几个亲手跑通的程序 —— 你已经不是 AI 新闻的围观者了。从这面旗帜开始，任何新名词出现，你都能把它放进地图的某一格：它动的是架构、训练方法，还是应用层的包装？这就是"地图"的全部意义。',
+      tags: ['动手 > 围观', '构建 > 收藏'],
+    },
+  ];
+
+  const base = document.getElementById('trail-base');
+  const prog = document.getElementById('trail-progress');
+  const nodes = Array.from(document.querySelectorAll('.map-node'));
+  const summit = document.getElementById('summit');
+  const chips = Array.from(document.querySelectorAll('#map-chips .chip'));
+
+  /* 计算每个里程碑在山路上的弧长位置 */
+  const total = base.getTotalLength();
+  prog.style.strokeDasharray = total + ' ' + total;
+  const lenAt = nodes.map(n => {
+    const c = n.querySelector('.c');
+    const px = +c.getAttribute('cx'), py = +c.getAttribute('cy');
+    let best = 0, bd = Infinity;
+    for (let s = 0; s <= 600; s++) {
+      const l = total * s / 600;
+      const p = base.getPointAtLength(l);
+      const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+      if (d < bd) { bd = d; best = l; }
+    }
+    return best;
+  });
+  lenAt.push(total); // 山顶
+
+  function select(i) {
+    nodes.forEach((n, j) => {
+      n.classList.toggle('done', i === 6 ? true : j < i);
+      n.classList.toggle('active', j === i);
+      n.classList.toggle('todo', i !== 6 && j > i);
+    });
+    summit.classList.toggle('active', i === 6);
+    prog.style.strokeDashoffset = total - lenAt[i];
+    chips.forEach(c => c.classList.toggle('active', +c.dataset.i === i));
+    const d = STAGES[i];
+    document.getElementById('ms-title').textContent = d.title;
+    document.getElementById('ms-period').textContent = d.period;
+    document.getElementById('ms-desc').textContent = d.desc;
+    document.getElementById('ms-tags').innerHTML =
+      d.tags.map(t => '<span class="pill pill-ink">' + t + '</span>').join('');
+  }
+
+  nodes.forEach(n => n.addEventListener('click', () => select(+n.dataset.i)));
+  summit.addEventListener('click', () => select(6));
+  chips.forEach(c => c.addEventListener('click', () => select(+c.dataset.i)));
+  select(6); // 初始即完成态：全程点亮，旗帜在望
+})();
+
+/* ---------- 路线选择联动 ---------- */
+(function () {
+  const HINTS = {
+    research: '<b>研究路线</b>：本周行动 —— 打开 Karpathy 的《Zero to Hero》第一集，跟着亲手写完一个反向传播。',
+    build: '<b>工程路线</b>：本周行动 —— 把 26 课的 30 行代码升级成带错误处理和对话记忆的"像样"项目。',
+    product: '<b>产品路线</b>：本周行动 —— 列出工作里最烦的三个重复环节，挑一个画出 MVP 草图。',
+    watch: '<b>观察者路线</b>：本周行动 —— 收藏三个可靠信源，取关三个只会喊"炸裂"的标题党。',
+  };
+  const chips = Array.from(document.querySelectorAll('#route-chips .chip'));
+  const cards = Array.from(document.querySelectorAll('#routes .use-card'));
+  const hint = document.getElementById('route-hint');
+
+  function pick(key) {
+    chips.forEach(c => c.classList.toggle('active', c.dataset.route === key));
+    cards.forEach(c => {
+      c.classList.toggle('lit', c.dataset.route === key);
+      c.classList.toggle('dim', c.dataset.route !== key);
+    });
+    hint.innerHTML = HINTS[key];
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => pick(c.dataset.route)));
+  cards.forEach(c => c.addEventListener('click', () => pick(c.dataset.route)));
+})();
+</script>
+
+</body>
+</html>

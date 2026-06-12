@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 15 课 · Scaling Laws 与涌现：大力出奇迹 — 拓智</title>
+<meta name="description" content="损失随参数、数据、算力按幂律平滑下降 —— 小模型画线、大模型外推，'大力出奇迹'第一次有了数学保证。Chinchilla 配平、涌现之争、天花板与新轴线，一课讲透大模型军备竞赛的底层逻辑。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：双图切换 ---------- */
+.mt-14 { margin-top: 14px; }
+.lx-note { font-size: 12px; color: var(--fg-2); margin-top: 12px; }
+.lx-sub { font-size: 12px; font-weight: 600; color: var(--fg-2); margin: 14px 0 6px; }
+.demo-stage svg[hidden] { display: none; }
+.lx-enter { animation: lx-fade 0.45s ease; }
+@keyframes lx-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#demo-pow .pl-line { transition: opacity 0.2s ease; }
+#demo-pow.focus .pl-line { opacity: 0.15; }
+#demo-pow.focus .pl-line.hot { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .lx-enter { animation: none; }
+  #demo-pow .pl-line { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第三阶段 · 大模型篇</span> / <span>第 15 课</span>
+    </div>
+    <h1>Scaling Laws 与涌现：大力出奇迹</h1>
+    <p class="subhead">参数 ×10、数据 ×10、算力 ×10，能力曲线如何变化？以及那些模型“突然学会”新本领的神秘瞬间。</p>
+    <div class="meta">
+      <span class="pill pill-ink">进阶</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 30 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>看懂大模型军备竞赛的底层逻辑：幂律让「砸 1 亿美元能买到多强」在开训之前就可以预读</div>
+      <div class="goal-item"><span class="tick">✓</span>掌握 Chinchilla 配平法则：参数与数据要按比例喂（经验比约每参数配 20 个 token），光堆参数是"营养不良"</div>
+      <div class="goal-item"><span class="tick">✓</span>理解涌现与它的争议：为什么平均分平滑上涨，多步推理却像"突然开窍"—— 以及这可能是评分方式造成的假象</div>
+      <div class="goal-item"><span class="tick">✓</span>看清 2024 年后的转向：纯堆参数收益放缓，前沿押注测试时计算与数据质量（第 23 课预告）</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：开炉之前，结果已经写在直线上</h2>
+    <p class="lead">先看一个让外行费解的新闻现象：某公司宣布融资几十亿美元，要建"十万卡集群"训练下一代模型 —— 钱还没花，CEO 已经敢向投资人保证新模型会强多少。要知道一次旗舰训练烧掉上亿美元、跑好几个月、中途不能重来，这种"赌局"怎么敢开？答案是：<b>这根本不是赌局。</b>2020 年 OpenAI 的研究者（Kaplan 等人）系统地做了一件笨功夫的事 —— 训练一大批从小到大的语言模型，记下每个的损失，然后发现了本课的主角。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">直觉印象</span></div>
+        <div class="big">训大模型像炼丹 <span class="gap">→</span> 开炉前没人知道结果</div>
+        <p class="note">按这个理解，没有谁敢在训练前就向董事会承诺性能 —— 可厂商偏偏敢，而且一代接一代地敢。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">真实机制</span></div>
+        <div class="big">损失沿幂律平滑下降，小模型画线、大模型<span class="hl">外推</span></div>
+        <p class="note">规模横跨好几个数量级，这条规律都不打弯。大模型的成绩，在开训之前就写在直线的延长线上。</p>
+      </div>
+    </div>
+    <p class="lead mt-14">先复习一个词：<b>损失（loss）</b>，就是预训练那场"猜下一个词"考试的平均错误程度（第 12 课），越低说明模型的语言功力越深。Kaplan 等人发现：把模型放大，损失的下降不是忽快忽慢的玄学，而是惊人地规律 ——<b>参数量每扩大 10 倍，损失就按一个固定的比例再降一截；数据量、算力也各自如此</b>。这种"每翻 10 倍、按固定比例改善"的规律，数学上叫<b>幂律</b>（power law）。你不需要记定义，只需要记它最值钱的性质：把坐标纸换成对数刻度（每一格代表 ×10），幂律曲线就变成一条<b>笔直的线</b> —— 而直线，是可以拿尺子往右延长的。于是整个流程变成四步：</p>
+    <div class="use-grid cols-4">
+      <div class="card use-card">
+        <div class="label">第 1 步 · 便宜</div>
+        <div class="en">训<b>一排小模型</b></div>
+        <div class="zh">从小到大训一串模型，每个都便宜，几天就出结果 —— 成本只是目标大模型的千分之一、万分之一。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 2 步 · 描点</div>
+        <div class="en">对数纸上<b>描点</b></div>
+        <div class="zh">横轴是规模、纵轴是损失，都换成对数刻度，把每个小模型的成绩点上去。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 3 步 · 连线</div>
+        <div class="en">点连成<b>直线</b></div>
+        <div class="zh">幂律保证这些点近乎完美地排在一条直线上 —— 这是大自然送给 AI 行业的礼物。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 4 步 · 外推</div>
+        <div class="en">沿直线<b>外推</b></div>
+        <div class="zh">把直线延长 100 倍、10000 倍，读出还没训的大模型会"考多少分"，再决定砸不砸钱。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">这不是纸面理论，是被反复验证过的工程实践 —— 最有名的一次验证来自 GPT-4：</p>
+    <div class="example">
+      <div class="en">GPT-4 技术报告（2023）：用算力不到它万分之一的小模型做实验，提前准确预测了 GPT-4 训练完成后的最终损失。</div>
+      <div class="zh">上亿美元的训练还没开始，结果已经先被"算"出来了。"大力出奇迹"第一次有了数学保证 —— 这就是大模型军备竞赛的底层逻辑：<b>敢砸钱，是因为回报可以预读。</b></div>
+    </div>
+    <p class="lead mt-14">把你见过的新闻现象和这条规律连上线：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>你在新闻 / 产品里看到的</th><th>背后的机制</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>"万卡集群""百亿融资"，听起来像疯狂豪赌</b></td>
+            <td class="ex">幂律让回报提前可算 —— 这是工程预算，不是赌博</td>
+          </tr>
+          <tr>
+            <td><b>每代模型发布前，业内就默认"下一代会更强"</b></td>
+            <td class="ex">三条幂律线还没走平，外推的延长线上写着"继续变强"</td>
+          </tr>
+          <tr>
+            <td><b>模型名字里的 7B、70B、405B</b></td>
+            <td class="ex">参数量（Billion，十亿）是幂律三轴之一，规模最直观的标尺</td>
+          </tr>
+          <tr>
+            <td><b>GPT-4 还没发布，OpenAI 内部已知道它大概多强</b></td>
+            <td class="ex">小模型实验 + 外推，万分之一的算力提前锁定答案</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead mt-14">不过注意两件事。第一，幂律预测的是<b>损失</b> —— 一张几十万道猜词题的<b>平均成绩单</b>；平均分可以外推，"会不会做某一类题"却未必跟着平均分平滑变化（涌现一节见）。第二，"参数、数据、算力"三个轴该按什么比例加大，2020 年的论文给出了一个<b>误导业界两年</b>的答案 —— 先说这件事。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 Chinchilla：光堆参数不够，参数和数据要配平</h2>
+    <p class="lead">一次训练烧掉的算力，大致由两样东西相乘决定：<b>模型多大（参数量）× 喂了多少数据（token 数）</b>。预算固定时，这是一道分配题 —— 要更大的脑袋，还是让脑袋多读书？2020 年的论文给的答案偏向"脑袋优先"，于是业界掀起一场纯粹的<b>参数竞赛</b>：GPT-3 1750 亿、Gopher 2800 亿、Megatron-Turing 5300 亿……参数翻了几倍，喂的数据却几乎停在原地（几千亿 token 上下）。</p>
+    <p class="lead">2022 年，DeepMind 决定重做这道分配题：训练 <b>400 多个</b>不同"大小 × 饭量"组合的模型，逐一比较同样预算下谁最强。结论震动业界 ——<b>最优配比大约是每 1 个参数配 20 个 token</b>。按这把尺子一量，当时所有的巨无霸模型集体"露馅"：</p>
+    <div class="example">
+      <div class="en">Gopher：2800 亿参数，按配比该喂约 5.6 万亿 token —— 实际只喂了约 3000 亿，不到所需的二十分之一。</div>
+      <div class="zh">一身巨人的骨架，没吃过几顿饱饭 —— 这就是"<b>营养不良</b>"：钱大量花在撑大脑容量上，脑子里却没装进足够的世界。参数是潜力，数据才是把潜力填满的东西。</div>
+    </div>
+    <p class="lead mt-14">DeepMind 顺手做了一次公开处刑式的验证：按新配比训练一个叫 <b>Chinchilla</b>（龙猫）的模型 —— 参数只有 Gopher 的四分之一，数据却多喂四倍多，总算力两者相同：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th></th><th>Gopher（2021）</th><th>Chinchilla（2022）</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="be">参数量</td><td class="ex">2800 亿</td><td class="ex">700 亿（只有 1/4）</td></tr>
+          <tr><td class="be">训练数据</td><td class="ex">约 3000 亿 token</td><td class="ex">约 1.4 万亿 token（4 倍多）</td></tr>
+          <tr><td class="be">训练算力</td><td class="ex">相同</td><td class="ex">相同</td></tr>
+          <tr><td class="be">成绩</td><td class="ex">营养不良的巨人</td><td class="ex">吃饱饭的小个子，<b>全面胜出</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead mt-14">同样的钱，换个分法，白捡一截性能 —— 此后所有前沿实验室的训练配方都被改写。至于 2020 年为什么算错，复盘原因相当技术化（一些训练设置没随规模调对，导致低估了数据的价值），对我们重要的是教训：<b>Scaling 不是无脑堆某一个轴，三个轴要配平着一起放大。</b></p>
+    <p class="lead">但故事还有反转：20 : 1 是"<b>训练预算固定</b>"下的最优解，后来大家发现真正该算的是另一本账 —— 模型训完要被调用亿万次，<b>小模型每次调用便宜得多</b>。于是厂商开始故意"过量喂养"：给几十亿参数的小模型喂上十几万亿 token（每参数上千个，远超 20 : 1），多花的训练费靠之后亿万次的便宜调用赚回来。你手机上能离线跑动的那些小模型，多半就是这么喂出来的。这不是 Chinchilla 错了，而是优化目标从"训练最划算"换成了"训练 + 服务总账最划算"—— 法则没变，账本变了。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 涌现：平均分平滑上涨，某些题突然会做</h2>
+    <p class="lead">用过不同代模型的人都有这种体感：给上一代模型出一道多步应用题，它一本正经地胡说；换下一代，突然就会一步步算了。能力似乎不是"渐渐变好"，而是"某天突然开窍"。这和幂律的"平滑"矛盾吗？先看现场：</p>
+    <div class="example">
+      <div class="en">题目：筐里有 23 个苹果，先拿走 7 个，剩下的平分给 4 个人，每人分到几个？</div>
+      <div class="zh"><b>规模不够的模型：</b>「每人分 5 个。」—— 张口就答，自信且错；追问过程，它还会现编一段看似合理的"算法"。<b>跨过临界规模的模型：</b>「先算剩余：23 拿走 7，还剩 16；再平分：16 个分给 4 人，每人 4 个。」—— 不仅答对，还开始自发列步骤。在标准评测里，这类任务的得分曲线长期贴着 0%，跨过某个规模后陡然蹿到很高 —— 研究者把这种跳变叫<b>涌现</b>（emergence）。</div>
+    </div>
+    <p class="lead mt-14">为什么平均分平滑、单项却会跳？关键在于：损失是几十万道猜词题的<b>平均</b>成绩，平均分稳步上涨，完全不妨碍"某一类题"原地踏步很久再猛涨。把多步题想成<b>走钢丝</b>就懂了：四步推理，一步踩空、满盘皆输，而评测通常也只认"全对"。现在让模型平滑进步 —— 每一步的把握从五成涨到八成、再到九成五：每步五成时，四步连对的机会不到一成；每步八成，也才四成左右；每步九成五，四步连对一下子到了八成多。<b>单步能力在平滑爬坡，"全对率"却先趴在地板上很久，然后猛地起跳</b> —— 平滑的内功，配上"全对才得分"的考法，天然长出一条 S 形跳变曲线。被报告过涌现的能力还有不少：多位数算术、思维链推理（「让我们一步一步想」这句咒语只对足够大的模型有效，第 23 课细讲）、理解复杂的多重指令……</p>
+    <p class="lead">不过要诚实补充一盆冷水。2023 年斯坦福的研究者发表了一篇标题就很挑衅的论文 ——《涌现能力是海市蜃楼吗？》：同一批模型、同一个任务，把"全对才得分"换成"按步骤给部分分"的平滑指标，<b>不少著名的陡峭跳变立刻变回平缓爬坡</b>。跳的可能不是能力，是量尺。学界至今争论：有些任务换了平滑指标依然陡峭，"真涌现"可能存在；但至少可以确定，一部分轰动一时的"涌现"是评分方式造出的视觉效果，而不是模型内部发生了什么神秘质变。</p>
+    <p class="lead">对你真正重要的结论只有一条：<b>平均损失可以提前算，单项能力何时出现，至今没人能提前算。</b>幂律给军备竞赛上了保险，涌现（无论真假）给它留了悬念 —— 所以厂商训完新模型，还得跑几千个评测才知道这一代"突然会了"什么。可预测与不可预测，正好是本课交互演示的两张图。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：Scaling 的两副面孔</h2>
+    <p class="lead">图一是 Scaling Laws 的"保险单"：对数坐标纸上三条直线，左半段实心点是真实训过的小模型，右半段虚线是外推 —— 大模型还没训，成绩已写在线上。图二是涌现的"悬念"：同一时期平均损失平滑下降（灰色虚线），「多步算术全对率」却在临界规模处猛然蹿升。两张都是手绘示意图，重在形状，别抠数值。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 可预测的损失 vs 不可预测的能力</span>
+        <span class="demo-hint">点右侧胶囊切换两张图</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="demo-pow" viewBox="0 0 460 300" width="440" aria-label="示意图：对数坐标下，损失随参数量、数据量、算力的放大各自沿直线下降；左半段为实测小模型数据点，右半段虚线为外推预测">
+            <text x="60" y="16" font-size="11" fill="var(--fg-2)">损失（越低越好 · 对数刻度）</text>
+            <text x="436" y="16" text-anchor="end" font-size="11" fill="var(--fg-2)">示意图 · 非真实数据</text>
+            <line x1="60" y1="24" x2="60" y2="252" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="60" y1="252" x2="440" y2="252" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="132" y1="252" x2="132" y2="257" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="204" y1="252" x2="204" y2="257" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="276" y1="252" x2="276" y2="257" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="348" y1="252" x2="348" y2="257" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="420" y1="252" x2="420" y2="257" stroke="var(--fg-2)" stroke-width="1"/>
+            <text x="250" y="280" text-anchor="middle" font-size="11" fill="var(--fg-2)">规模 →（对数刻度 · 每一格 = ×10）</text>
+            <line x1="270" y1="30" x2="270" y2="252" stroke="var(--hairline-strong)" stroke-width="1" stroke-dasharray="3 5"/>
+            <text x="165" y="40" text-anchor="middle" font-size="12" font-weight="600" fill="var(--fg-1)">实测：一排便宜的小模型</text>
+            <text x="352" y="40" text-anchor="middle" font-size="12" font-weight="600" fill="var(--fg-1)">外推：直线照画下去</text>
+            <text x="352" y="56" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">空心点 = 预测中的大模型</text>
+            <g class="pl-line" data-key="param">
+              <text x="74" y="58" font-size="12" font-weight="700" fill="var(--sky)">参数量</text>
+              <path d="M70,66 L270,122" fill="none" stroke="var(--sky)" stroke-width="2.5"/>
+              <path d="M270,122 L425,166" fill="none" stroke="var(--sky)" stroke-width="2" stroke-dasharray="6 6" opacity="0.85"/>
+              <circle cx="85" cy="68" r="3" fill="var(--sky)"/>
+              <circle cx="120" cy="82" r="3" fill="var(--sky)"/>
+              <circle cx="155" cy="88" r="3" fill="var(--sky)"/>
+              <circle cx="190" cy="102" r="3" fill="var(--sky)"/>
+              <circle cx="225" cy="108" r="3" fill="var(--sky)"/>
+              <circle cx="258" cy="120" r="3" fill="var(--sky)"/>
+              <circle cx="425" cy="166" r="4.5" fill="var(--bg-card)" stroke="var(--sky)" stroke-width="2"/>
+            </g>
+            <g class="pl-line" data-key="data">
+              <text x="74" y="96" font-size="12" font-weight="700" fill="var(--amber)">数据量</text>
+              <path d="M70,104 L270,160" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+              <path d="M270,160 L425,204" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="6 6" opacity="0.85"/>
+              <circle cx="85" cy="109" r="3" fill="var(--amber)"/>
+              <circle cx="120" cy="117" r="3" fill="var(--amber)"/>
+              <circle cx="155" cy="129" r="3" fill="var(--amber)"/>
+              <circle cx="190" cy="136" r="3" fill="var(--amber)"/>
+              <circle cx="225" cy="149" r="3" fill="var(--amber)"/>
+              <circle cx="258" cy="156" r="3" fill="var(--amber)"/>
+              <circle cx="425" cy="204" r="4.5" fill="var(--bg-card)" stroke="var(--amber)" stroke-width="2"/>
+            </g>
+            <g class="pl-line" data-key="compute">
+              <text x="74" y="134" font-size="12" font-weight="700" fill="var(--sage)">算力</text>
+              <path d="M70,142 L270,198" fill="none" stroke="var(--sage)" stroke-width="2.5"/>
+              <path d="M270,198 L425,242" fill="none" stroke="var(--sage)" stroke-width="2" stroke-dasharray="6 6" opacity="0.85"/>
+              <circle cx="85" cy="145" r="3" fill="var(--sage)"/>
+              <circle cx="120" cy="158" r="3" fill="var(--sage)"/>
+              <circle cx="155" cy="164" r="3" fill="var(--sage)"/>
+              <circle cx="190" cy="177" r="3" fill="var(--sage)"/>
+              <circle cx="225" cy="184" r="3" fill="var(--sage)"/>
+              <circle cx="258" cy="196" r="3" fill="var(--sage)"/>
+              <circle cx="425" cy="242" r="4.5" fill="var(--bg-card)" stroke="var(--sage)" stroke-width="2"/>
+            </g>
+          </svg>
+          <svg id="demo-emg" viewBox="0 0 460 300" width="440" hidden aria-label="示意图：模型规模跨过临界点后，多步算术全对率从接近 0% 陡然蹿升至很高；同期平均损失始终平滑下降">
+            <text x="60" y="16" font-size="11" fill="var(--fg-2)">「多步算术」全对率</text>
+            <text x="436" y="16" text-anchor="end" font-size="11" fill="var(--fg-2)">示意图 · 非真实数据</text>
+            <line x1="60" y1="24" x2="60" y2="252" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="60" y1="252" x2="440" y2="252" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="56" y1="48" x2="60" y2="48" stroke="var(--fg-2)" stroke-width="1"/>
+            <line x1="56" y1="150" x2="60" y2="150" stroke="var(--fg-2)" stroke-width="1"/>
+            <text x="52" y="52" text-anchor="end" font-size="10" fill="var(--fg-2)">100%</text>
+            <text x="52" y="154" text-anchor="end" font-size="10" fill="var(--fg-2)">50%</text>
+            <text x="52" y="252" text-anchor="end" font-size="10" fill="var(--fg-2)">0%</text>
+            <text x="250" y="280" text-anchor="middle" font-size="11" fill="var(--fg-2)">模型规模 →（对数刻度）</text>
+            <path d="M70,84 C190,112 310,142 430,166" fill="none" stroke="var(--fg-2)" stroke-width="2" stroke-dasharray="7 5" opacity="0.75"/>
+            <text x="76" y="70" font-size="11" fill="var(--fg-2)">平均损失：仍在平滑下降（另一把尺子 · 示意）</text>
+            <line x1="320" y1="34" x2="320" y2="252" stroke="var(--terracotta)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+            <text x="320" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="var(--terracotta)">临界规模</text>
+            <path d="M70,249 C150,248 220,246 268,241 C300,237 312,180 330,130 C348,80 372,66 430,61" fill="none" stroke="var(--terracotta)" stroke-width="2.5"/>
+            <circle cx="90" cy="249" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="130" cy="248" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="170" cy="247" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="210" cy="245" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="250" cy="243" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="285" cy="236" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="322" cy="150" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="340" cy="103" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="362" cy="73" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="395" cy="64" r="3.5" fill="var(--terracotta)"/>
+            <circle cx="425" cy="61" r="3.5" fill="var(--terracotta)"/>
+            <text x="175" y="228" text-anchor="middle" font-size="12" font-weight="600" fill="var(--fg-1)">长期趴地板：几乎全错</text>
+            <text x="392" y="46" text-anchor="middle" font-size="12" font-weight="600" fill="var(--terracotta)">突然会了</text>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="sl-chips">
+            <button class="chip active" data-key="pow">图一 · 幂律下降</button>
+            <button class="chip" data-key="emg">图二 · 涌现跳变</button>
+          </div>
+          <h4 id="sl-title"></h4>
+          <div class="period" id="sl-period"></div>
+          <p id="sl-desc"></p>
+          <div class="tags" id="sl-tags"></div>
+          <div id="pow-focus-wrap">
+            <div class="lx-sub">聚焦一条线：</div>
+            <div class="chips" id="pow-focus">
+              <button class="chip active" data-key="all">全部</button>
+              <button class="chip" data-key="param">参数量</button>
+              <button class="chip" data-key="data">数据量</button>
+              <button class="chip" data-key="compute">算力</button>
+            </div>
+          </div>
+          <p class="lx-note" id="sl-note"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🧭 天花板之争：大力还能出多久的奇迹</h2>
+    <p class="lead">故事讲到 2024 年，画风变了。三条幂律线在数学上依然成立 —— 问题是，沿着线往右走的"路费"开始失控。业界开始公开讨论：纯堆参数这条路，是不是快到头了？</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">第一堵墙 · 数据</div>
+        <div class="en">高质量数据<b>接近用尽</b></div>
+        <div class="zh">幂律要的是优质 token，而公开互联网的高质量文本是有限的 —— 前沿模型一次训练吞掉的数据量，与研究机构估计的"全网精华存量"已是同一数量级。复印更多低质网页，喂不出更聪明的模型。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第二堵墙 · 成本</div>
+        <div class="en">花费<b>指数级上涨</b></div>
+        <div class="zh">在对数轴上右移一格，等于真金白银 ×10。旗舰训练成本已是亿美元级，下一代普遍估计要到十亿美元级（具体数字各家讳莫如深，记数量级即可），电力和芯片同样吃紧。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">更扎心的 · 收益</div>
+        <div class="en">提升的<b>体感在变钝</b></div>
+        <div class="zh">这其实是幂律自己的预言：越往右，同样 ×10 的投入换来的损失下降越小。损失还在降，但用户那一声"哇"越来越贵 —— 性价比曲线先于幂律弯了腰。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">于是从 2024 年起，前沿竞争转向了新轴线 —— 不是放弃 Scaling，而是<b>换地方 Scaling</b>：</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">新轴线 ① · 第 23 课预告</div>
+        <div class="en">测试时计算：<b>答题时多想</b></div>
+        <div class="zh">与其把算力全砸在训练上，不如让模型答题前多"思考"几步 —— 2024 年底 OpenAI 的 o 系列、2025 年初 DeepSeek-R1 把这条路线推成主流。规模竞赛没有结束，只是从"训练时堆"转向"回答时堆"。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">新轴线 ② · 数据墙的解法</div>
+        <div class="en">数据质量与<b>合成数据</b></div>
+        <div class="zh">从"喂更多"转向"喂更好"：精筛、改写，甚至用强模型生成"教材级"训练数据再喂给下一代。同样的算力，一份好数据顶几份烂数据 —— 这是被数据墙逼出来的新工艺。</div>
+      </div>
+    </div>
+    <p class="footnote mt-14">"Scaling 已死"和"Scaling 万岁"都是标题党。2025 年的公认现状是：大力仍然出奇迹，但奇迹的单价在飞涨；前沿实验室一边继续堆规模，一边把更多筹码押向新轴线 —— 力气还得使，关键变成了往哪使。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">幂律这么可靠，规模无限堆下去必然到达 AGI</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">幂律保证的只是"猜词平均错误"平滑下降，不等于所有能力线性变强；数据、成本、电力也各有物理上限</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"损失"这张平均成绩单错当成"智能"本身。损失逼近极限时还剩多少能力提升，没人能从幂律里读出来 —— 涌现之争恰恰说明单项能力与平均分并不同步。而且直线往右每走一格都要真金白银 ×10：数学上的直线，撞的是物理上的墙（数据墙、成本墙）。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">Scaling Laws 时代，小模型没有价值</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">蒸馏后的小模型 + 端侧部署是另一条重要战线 —— 手机、汽车、隐私场景全指着它</span></div>
+        </div>
+        <p class="why"><b>病因：</b>只盯着"最强"，忘了"够用、便宜、离线"。让大模型当老师，把本事"蒸馏"进小模型（第 27 课细讲），再配上 Chinchilla 式的"过量喂养"，几十亿参数就能覆盖大量日常任务 —— 单次调用成本差几个数量级，端侧运行还不用上传数据。前沿在堆规模，产业在缩规模，两条战线同时成立。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">"涌现"说明模型在某一刻突然开窍，甚至萌生了意识</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">涌现描述的是评测分数的跳变；模型内部能力是连续爬坡的，部分跳变还可能是评分方式造出的假象</span></div>
+        </div>
+        <p class="why"><b>病因：</b>拟人化 + 媒体偏爱戏剧性叙事。模型没有"开窍瞬间"：单步能力一直在平滑提升，是"全对才得分"的考法把平缓爬坡显示成了起跳（走钢丝效应）。把分数跳变脑补成"觉醒"，就从科学滑进了科幻。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 某实验室要训下一代旗舰模型：预计烧掉十亿美元、训练半年、中途不能重来。董事会问 CEO："你怎么保证训出来不翻车？"请替 CEO 用本课内容回答。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>先小后大，画线外推。</b>先训一排成本只有目标模型千分之一、万分之一的小模型，把损失点在对数坐标纸上 —— 幂律保证这些点排成直线；把直线延长到目标规模，开训前就能读出大模型的最终损失。GPT-4 正是这么做的：技术报告称用不到其万分之一算力的小模型，提前准确预测了最终损失。诚实的 CEO 还该补一句：能预测的是<b>平均损失</b>，某项具体能力（比如多步推理）何时出现，目前没人能提前算。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 朋友说："算力预算固定的话，当然全砸参数，模型越大越聪明。"用 Chinchilla 的发现反驳他，并解释为什么今天的厂商反而常给小模型"过量喂数据"。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>参数和数据要配平。</b>DeepMind 2022 年训了 400 多个模型找最优配比：训练预算固定时，每 1 个参数大约配 20 个 token 最划算。光堆参数等于"长骨架不吃饭"—— 吃饱饭的 700 亿参数 Chinchilla，全面胜过 4 倍大却营养不良的 Gopher（两者算力相同）。至于"过量喂养"：20 : 1 只是<b>训练成本</b>最优，而模型训完要被调用亿万次，小模型每次调用便宜得多 —— 多花训练费换一个更小更便宜的模型，总账反而划算，所以几十亿参数的小模型常被喂到每参数上千个 token。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 一篇论文宣称"我们的模型在 X 任务上出现了涌现"。基于本课的"海市蜃楼"之争，你该追问哪两个问题？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">① <b>评分是不是"全对才得分"？</b>多步任务用全对率打分，天然会把平滑的单步进步显示成 S 形跳变 —— 走钢丝效应。② <b>换成给部分分的平滑指标，曲线还跳吗？</b>2023 年斯坦福的研究发现，不少著名"涌现"换把量尺就变回平缓爬坡。两问之后曲线依然陡峭，才值得认真讨论"真涌现"—— 但无论真假，"单项能力无法提前预测"这一点都成立。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="14-temperature-sampling.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">14 温度与采样：AI 为什么每次回答不一样</div>
+    </a>
+    <a class="card next" href="16-prompt-engineering.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">16 提示工程：和 AI 对话的艺术</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 双图切换 + 幂律线聚焦 ---------- */
+(function () {
+  const INFO = {
+    pow: {
+      title: '幂律下降：一条能外推的直线',
+      period: 'OpenAI 2020 · Kaplan 等 / DeepMind 2022',
+      desc: '横纵轴都换成对数刻度后，损失随参数、数据、算力的放大各自走成直线。实心点 = 真实训过的小模型；虚线与空心点 = 拿尺子延长直线，"预读"还没训的大模型成绩。',
+      tags: ['可预测', '先小后大', '军备竞赛的保险单'],
+      note: '三条线纵向错开只为看清，斜率为手绘示意；真实论文里横轴跨越七个以上数量级，点依然排成直线。',
+    },
+    emg: {
+      title: '涌现跳变：趴了很久，猛地起跳',
+      period: 'Wei 等 2022 · 多步算术（示意）',
+      desc: '灰色虚线：平均损失全程平滑下降，毫无异动。红线：「多步算术全对率」在临界规模前几乎贴零，跨线后陡然蹿升 —— 这就是被称为"涌现"的现象。',
+      tags: ['临界规模', '全对才得分', '仍在争论'],
+      note: '提醒：换成"按步骤给部分分"的量尺后，这条红线可能变回平缓爬坡 —— 跳变是否真实，学界仍在争论。',
+    },
+  };
+
+  const svgs = {
+    pow: document.getElementById('demo-pow'),
+    emg: document.getElementById('demo-emg'),
+  };
+  const chips = document.querySelectorAll('#sl-chips .chip');
+  const focusWrap = document.getElementById('pow-focus-wrap');
+  const focusChips = document.querySelectorAll('#pow-focus .chip');
+  const lines = document.querySelectorAll('#demo-pow .pl-line');
+
+  function show(key) {
+    Object.keys(svgs).forEach(k => {
+      const svg = svgs[k];
+      // 注意：hidden 属性对 SVG 元素无默认效果，需配合上方 CSS 规则
+      if (k === key) {
+        svg.removeAttribute('hidden');
+        svg.classList.remove('lx-enter');
+        void svg.getBoundingClientRect(); // 重新触发入场动画
+        svg.classList.add('lx-enter');
+      } else {
+        svg.setAttribute('hidden', '');
+      }
+    });
+    chips.forEach(c => c.classList.toggle('active', c.dataset.key === key));
+    const d = INFO[key];
+    document.getElementById('sl-title').textContent = d.title;
+    document.getElementById('sl-period').textContent = d.period;
+    document.getElementById('sl-desc').textContent = d.desc;
+    document.getElementById('sl-tags').innerHTML =
+      d.tags.map(t => '<span class="pill pill-ink">' + t + '</span>').join('');
+    document.getElementById('sl-note').textContent = d.note;
+    focusWrap.hidden = key !== 'pow';
+  }
+
+  function focusLine(key) {
+    focusChips.forEach(c => c.classList.toggle('active', c.dataset.key === key));
+    svgs.pow.classList.toggle('focus', key !== 'all');
+    lines.forEach(g => g.classList.toggle('hot', g.dataset.key === key));
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => show(c.dataset.key)));
+  focusChips.forEach(c => c.addEventListener('click', () => focusLine(c.dataset.key)));
+
+  show('pow');
+  focusLine('all');
+})();
+</script>
+
+</body>
+</html>

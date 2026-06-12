@@ -1,0 +1,147 @@
+/* ============================================================
+   课程页共享模板样式 — 所有 lessons/*.html 引用
+   结构：lesson-hero → lsec（goals / contrast / match 表 /
+        use-grid / example / alert / quiz / demo）→ pager
+   ============================================================ */
+
+.lesson-hero { padding: 56px 0 40px; }
+.crumb { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--fg-2); margin-bottom: 20px; flex-wrap: wrap; }
+.crumb a { color: var(--fg-2); text-decoration: none; }
+.crumb a:hover { color: var(--fg-0); }
+.lesson-hero h1 { font-size: clamp(28px, 4.4vw, 40px); }
+.lesson-hero .subhead { margin-top: 12px; }
+.lesson-hero .meta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; align-items: center; }
+
+.lsec { margin-top: 44px; }
+.lsec > h2 { font-size: 22px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.lsec > .lead { font-size: 15px; color: var(--fg-1); margin-bottom: 18px; }
+
+/* 目标清单 */
+.goals { padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; }
+.goal-item { display: flex; gap: 10px; font-size: 15px; align-items: baseline; }
+.goal-item .tick { color: var(--sage); font-weight: 700; flex: none; }
+
+/* 概念对照（左：直觉印象 / 右：真实机制） */
+.contrast { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.contrast-card { padding: 22px; }
+.contrast-card .tag { margin-bottom: 12px; }
+.contrast-card .big { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.contrast-card .big .gap { color: var(--terracotta); font-weight: 700; }
+.contrast-card .big .hl { border-bottom: 3px solid var(--sage); }
+.contrast-card .note { font-size: 14px; color: var(--fg-1); margin-top: 10px; }
+
+/* 对照/分配表 */
+table.match { width: 100%; border-collapse: collapse; font-size: 15px; }
+table.match th, table.match td { text-align: left; padding: 12px 18px; border-top: 1px solid var(--hairline); }
+table.match thead th { border-top: none; font-size: 13px; font-weight: 600; color: var(--fg-2); }
+table.match td.be { font-weight: 700; font-size: 17px; }
+table.match td.ex { color: var(--fg-1); }
+
+/* 概念卡片网格（默认三列，可用 .cols-2 / .cols-4 调整） */
+.use-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.use-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.use-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.use-card { padding: 20px; }
+.use-card .label { font-size: 13px; font-weight: 600; color: var(--fg-2); margin-bottom: 8px; }
+.use-card .en { font-size: 17px; font-weight: 600; }
+.use-card .en b { border-bottom: 2px solid var(--sage); }
+.use-card .zh { font-size: 14px; color: var(--fg-1); margin-top: 4px; }
+
+/* 例句/术语列表 */
+.example + .example { margin-top: 10px; }
+
+/* 常见误区警报 */
+.alert-card { border-left: 3px solid var(--terracotta); }
+.alert-item { padding: 18px 22px; }
+.alert-item .why { font-size: 14px; color: var(--fg-1); margin-top: 8px; }
+.alert-item .why b { color: var(--fg-0); }
+
+/* 练习 */
+.quiz { padding: 6px 0; }
+.quiz-item { padding: 16px 22px; }
+.quiz-item .q { font-size: 16px; font-weight: 500; }
+.quiz-item .q .blank { display: inline-block; min-width: 64px; border-bottom: 2px solid var(--hairline-strong); text-align: center; color: var(--fg-2); }
+.quiz-item details { margin-top: 8px; }
+.quiz-item summary { font-size: 13px; font-weight: 600; color: var(--sky); cursor: pointer; list-style: none; }
+.quiz-item summary::before { content: "▸ "; }
+.quiz-item details[open] summary::before { content: "▾ "; }
+.quiz-item .ans { font-size: 15px; margin-top: 6px; padding: 10px 14px; background: var(--bg-inset); border-radius: var(--r-md); }
+.quiz-item .ans b { color: var(--sage); }
+
+/* 上下课导航 */
+.pager { display: flex; gap: 14px; margin-top: 56px; }
+.pager a { flex: 1; padding: 18px 22px; text-decoration: none; color: inherit; transition: border-color 0.15s ease; }
+.pager a:hover { border-color: var(--fg-2); }
+.pager .dir { font-size: 13px; color: var(--fg-2); }
+.pager .name { font-size: 16px; font-weight: 600; margin-top: 2px; }
+.pager .next { text-align: right; }
+.pager .disabled { opacity: 0.5; pointer-events: none; }
+
+@media (max-width: 700px) {
+  .contrast, .use-grid, .use-grid.cols-2, .use-grid.cols-4 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   AI 课程扩展 — 交互演示组件
+   demo（演示面板）/ chip（切换胶囊）/ flip-card（点击揭晓卡）
+   ============================================================ */
+
+/* 演示面板：左舞台（SVG/canvas/three.js）+ 右说明 */
+.demo { padding: 0; overflow: hidden; }
+.demo-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 14px 22px; border-bottom: 1px solid var(--hairline); flex-wrap: wrap;
+}
+.demo-head .demo-title { font-size: 14px; font-weight: 600; }
+.demo-head .demo-hint { font-size: 12px; color: var(--fg-2); }
+.demo-body { display: grid; grid-template-columns: 1.1fr 1fr; }
+.demo-stage { padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 280px; }
+.demo-stage svg, .demo-stage canvas { max-width: 100%; height: auto; display: block; }
+.demo-side { border-left: 1px solid var(--hairline); padding: 22px; }
+.demo-side h4 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.demo-side .period { font-size: 13px; color: var(--fg-2); margin-top: 2px; }
+.demo-side p { font-size: 14px; color: var(--fg-1); margin-top: 10px; }
+.demo-side .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+
+/* 切换胶囊 */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  padding: 6px 14px; border-radius: var(--r-pill); cursor: pointer;
+  color: var(--fg-1); background: var(--glass);
+  border: 1px solid var(--hairline-strong);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.chip:hover { border-color: var(--fg-2); }
+.chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+/* 滑块行（后续课程：权重 / temperature 等参数调节） */
+.slider-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+.slider-row label { font-size: 13px; font-weight: 600; color: var(--fg-1); min-width: 88px; }
+.slider-row input[type="range"] { flex: 1; accent-color: var(--fg-0); }
+.slider-row .val { font-size: 13px; font-weight: 700; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 点击揭晓卡（分类小游戏） */
+.flip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.flip-card {
+  font-family: inherit; text-align: left; cursor: pointer;
+  padding: 16px 18px; color: inherit;
+  background: var(--bg-card); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, transform 0.18s ease;
+}
+.flip-card:hover { border-color: var(--fg-2); }
+.flip-card:active { transform: scale(0.98); }
+.flip-card .fc-q { font-size: 15px; font-weight: 600; line-height: 1.45; }
+.flip-card .fc-tap { font-size: 12px; color: var(--sky); margin-top: 10px; font-weight: 600; }
+.flip-card .fc-a { display: none; margin-top: 10px; }
+.flip-card .fc-a .why { font-size: 13px; color: var(--fg-1); margin-top: 6px; }
+.flip-card.revealed { border-color: var(--hairline-strong); }
+.flip-card.revealed .fc-a { display: block; }
+.flip-card.revealed .fc-tap { display: none; }
+
+@media (max-width: 700px) {
+  .demo-body { grid-template-columns: 1fr; }
+  .demo-side { border-left: none; border-top: 1px solid var(--hairline); }
+  .flip-grid { grid-template-columns: 1fr; }
+}

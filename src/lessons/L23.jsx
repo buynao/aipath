@@ -1,0 +1,273 @@
+import { useState } from 'react'
+import { Lsec, FlipCard, QuizItem } from '../components/ui.jsx'
+
+// ============================================================
+// 直答 vs 慢思考
+// ============================================================
+const RM_MODE = {
+  fast: { title: '直答模式 = 系统 1', period: '一次前向押答案 · 每个 token 思考量恒定',
+    desc: '模型读完题，下一个 token 就得开始写答案 ——“假设、算差、换算”几步连环全压进一次前向计算里。像被主持人逼着抢答的选手：蒙对一半已经是运气。' },
+  slow: { title: '慢思考模式 = 系统 2', period: '先打草稿再作答 · 用 token 换答对率',
+    desc: '同一个模型，先写草稿再作答。每行只做一小步，写下的内容立刻成为下一行的依据 —— 心算变笔算。' },
+}
+const RM_DRAFT = [
+  '① 先摆条件：头 35 个，脚 94 只；鸡 2 只脚，兔 4 只脚。',
+  '② 假设 35 只全是鸡：脚只有 70 只，比实际少 24 只。',
+  '③ 每把一只鸡换成兔，脚多 2 只 —— 补上 24 只脚，要换 12 次。',
+  '④ 所以兔有 12 只，鸡是剩下的 23 只。',
+  '⑤ 等等，验算一下：头 23 加 12 是 35 ✓；脚 46 加 48 是 94 ✓。',
+  '⑥ 两项都对上了，可以作答。',
+]
+const RM_NOTES = [
+  '点「下一步」逐行揭开草稿。盯住一点：每一行都只做一小步，而且都踩在前面已写下的内容上。',
+  '① 复述条件 = 把关键数字搬进最近的上下文 —— 后面每一步的注意力都更容易命中它们（第 9 课）。',
+  '② 大题的第一刀：先算一个“全是鸡”的简化世界。这一步本身足够小，一次前向稳稳吃下。',
+  '③ 关键衔接：上一行写下的“少 24 只”就躺在纸面上 —— 这一步直接引用它，不需要任何“心算记忆”。',
+  '④ 换算完成。注意到了吗：直答模式正是在这一步翻的车 —— 把它单独拎出来做，就稳了。',
+  '⑤ 招牌动作：反思与验算。没人教过这个动作 —— 它是强化学习里“验算过的草稿更常拿到奖励”筛出来的本能。',
+  '⑥ 草稿收束，正式作答。同一个模型，多花几十个 token 的“测试时计算”，答对率从约三成抬到约九成（示意）。',
+]
+
+function ReasonDemo() {
+  const [mode, setMode] = useState('fast')
+  const [step, setStep] = useState(0)
+  const d = RM_MODE[mode]
+
+  return (
+    <div className="card demo">
+      <div className="demo-head">
+        <span className="demo-title">🎛️ 交互演示 · 直答 vs 慢思考</span>
+        <span className="demo-hint">切换模式 · 慢思考可逐步播放</span>
+      </div>
+      <div className="demo-body">
+        <div className="demo-stage">
+          <div className="rm-chat">
+            <div className="rm-bubble rm-user">鸡兔同笼：数头共 35 个，数脚共 94 只。鸡、兔各有几只？</div>
+            {mode === 'fast' ? (
+              <div className="rm-bubble rm-ai">
+                <div className="rm-role">直答模式（系统 1）</div>
+                <p className="rm-ans bad">鸡有 12 只，兔有 23 只。<span className="mark">✗</span></p>
+                <p className="rm-note">一次前向直接押答案：两个数字都“撞”出来了，鸡兔正好写反 —— 最后那步换算没踩稳。</p>
+              </div>
+            ) : (
+              <div className="rm-bubble rm-ai">
+                <div className="rm-role">慢思考模式（系统 2）· 缩进部分是草稿</div>
+                <div className="rm-draft">
+                  {RM_DRAFT.map((line, i) => (
+                    <div key={i} className={`rm-dline${i < step ? ' on' : ''}${i === step - 1 ? ' now' : ''}`}>{line}</div>
+                  ))}
+                </div>
+                <p className={`rm-ans good${step < RM_DRAFT.length ? ' rm-final-dim' : ''}`}>鸡有 23 只，兔有 12 只。<span className="mark">✓</span></p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="demo-side">
+          <div className="chips">
+            {[['fast', '直答模式'], ['slow', '慢思考模式']].map(([k, label]) => (
+              <button key={k} className={`chip${k === mode ? ' active' : ''}`} onClick={() => setMode(k)}>{label}</button>
+            ))}
+          </div>
+          <h4>{d.title}</h4>
+          <div className="period">{d.period}</div>
+          <p>{d.desc}</p>
+          {mode === 'slow' && (
+            <>
+              <div className="chips mt14">
+                <button className="chip" onClick={() => setStep((s) => Math.min(RM_DRAFT.length, s + 1))}>▸ 下一步</button>
+                <button className="chip" onClick={() => setStep(RM_DRAFT.length)}>⏩ 看完整草稿</button>
+                <button className="chip" onClick={() => setStep(0)}>↺ 重来</button>
+              </div>
+              <div className="rm-stepnote">{RM_NOTES[step]}</div>
+            </>
+          )}
+          <svg id="rm-bars" className="mt14" viewBox="0 0 250 92" width="240" aria-label="直答与慢思考两种模式在多步应用题上的答对率示意对比">
+            <text x="0" y="12" fontSize="11" fill="var(--fg-2)">同一批多步应用题 · 答对率（示意数据）</text>
+            <g style={{ opacity: mode === 'fast' ? 1 : 0.35 }}>
+              <text x="58" y="40" fontSize="11.5" textAnchor="end" fill="var(--fg-0)">直答</text>
+              <rect x="66" y="29" width="130" height="14" rx="7" fill="var(--bg-inset)" />
+              <rect x="66" y="29" width="42" height="14" rx="7" fill="var(--terracotta)" fillOpacity="0.8" />
+              <text x="202" y="40" fontSize="11" fill="var(--fg-1)">约三成</text>
+            </g>
+            <g style={{ opacity: mode === 'slow' ? 1 : 0.35 }}>
+              <text x="58" y="66" fontSize="11.5" textAnchor="end" fill="var(--fg-0)">慢思考</text>
+              <rect x="66" y="55" width="130" height="14" rx="7" fill="var(--bg-inset)" />
+              <rect x="66" y="55" width="120" height="14" rx="7" fill="var(--sage)" fillOpacity="0.9" />
+              <text x="202" y="66" fontSize="11" fill="var(--fg-1)">约九成</text>
+            </g>
+            <text x="0" y="88" fontSize="10" fill="var(--fg-2)">数字为示意，量级参考思维链论文中的对比实验</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const FLIPS = [
+  { q: '把一封措辞强硬的催款邮件改得客气一点', pill: { type: 'sky', text: '普通模型就好' }, why: '语气改写是预训练接龙的看家本领，一次前向就稳 —— 开慢思考只多了等待和账单。' },
+  { q: '排班代码偶尔把跨月的班少算一天，找出原因', pill: { type: 'amber', text: '开慢思考' }, why: '要沿执行路径多步追踪、构造边界反例 —— 链条长且可验证，正是推理模型的主场。' },
+  { q: '把一篇 3000 字的行业新闻翻译成英文', pill: { type: 'sky', text: '普通模型就好' }, why: '翻译接近“逐句对照”，几乎没有多步链条 —— 草稿换不来答对率，纯付学费。' },
+  { q: '规划 5 天 3 城的出差：航班、预算、会议时间互相牵制', pill: { type: 'amber', text: '开慢思考' }, why: '多约束互相打架，要试方案、发现冲突、回头调整 —— 反思与回溯的用武之地。' },
+  { q: '把今天 1 小时的会议记录压成 5 条要点', pill: { type: 'sky', text: '普通模型就好' }, why: '信息压缩一遍前向就够，摘要场景还要求快 —— 慢思考的延迟反而是减分项。' },
+  { q: '一道数学竞赛的压轴证明题', pill: { type: 'amber', text: '开慢思考' }, why: 'o1 / R1 的成名战场：链条长、答案可验证 —— 思考 token 给得越足，得分爬得越高。' },
+]
+
+export default function L23() {
+  return (
+    <>
+      <Lsec title="🎯 你将学会">
+        <div className="card goals">
+          <div className="goal-item"><span className="tick">✓</span>用“系统 1 / 系统 2”一句话说清直答与慢思考的差别，并解释前 22 课的模型做多步数学为什么容易翻车 —— 每个 token 的思考量是恒定的</div>
+          <div className="goal-item"><span className="tick">✓</span>讲清思维链为什么有效：写出来的步骤进入上下文（第 17 课的书桌），成为后续 token 的依据 —— 一道大题被拆成多次“只走一步”的小前向</div>
+          <div className="goal-item"><span className="tick">✓</span>看懂 o1 / DeepSeek-R1 的训练思路：在答案可自动验证的任务上做强化学习，让“打草稿”从技巧内化成本能 —— 反思、验算、换思路全是自己长出来的</div>
+          <div className="goal-item"><span className="tick">✓</span>认出第二条 scaling 曲线“测试时计算”（兑现第 15 课结尾的钩子），并掌握选型直觉：什么题值得多想一会儿，什么题杀鸡不用牛刀</div>
+        </div>
+      </Lsec>
+
+      <Lsec
+        title="💡 核心概念：系统 1 抢答，系统 2 打草稿"
+        lead="先拿你自己做个实验。请在一秒内作答：球拍和球一共 1.1 元，球拍比球贵 1 元，球多少钱？—— 绝大多数人脱口而出“0.1 元”。慢下来打个草稿才发现：那样球拍就是 1.1 元，总价变成 1.2 元了；正确答案是 0.05 元。心理学家卡尼曼把脑内这两套流程命名为系统 1 和系统 2，这对概念恰好是本课的钥匙："
+      >
+        <div className="contrast">
+          <div className="card contrast-card">
+            <div className="tag"><span className="pill pill-ink">系统 1 · 快思考</span></div>
+            <div className="big">脱口而出 —— 快、省力，<span className="gap">但</span>遇到陷阱题就栽</div>
+            <p className="note">认人脸、读母语、答“法国首都”全靠它。优点是瞬间出活，缺点是只会顺着直觉里最顺滑的那条路走 ——“0.1 元”就是这么来的。</p>
+          </div>
+          <div className="card contrast-card">
+            <div className="tag"><span className="pill pill-sage">系统 2 · 慢思考</span></div>
+            <div className="big">打草稿 —— 慢、费力，<span className="hl">一步步可靠推进</span></div>
+            <p className="note">算 17 乘 24、做行程规划时它才上线。特征是把中间结果写下来，随时回头检查 —— 草稿纸是它的外接内存。</p>
+          </div>
+        </div>
+        <p className="lead mt14">现在说本课最重要的一句话：<b>前 22 课讲的所有模型，默认都活在系统 1 里。</b>机制在第 10 课就埋好了 —— 模型每生成一个 token，就是把整条上下文过一遍<b>固定层数</b>的网络：一次前向计算，不多不少。题目再难，它也没法“多想一会儿再开口”。对比两道题的待遇：</p>
+        <div className="example">
+          <div className="en">「法国的首都是哪？」→ 一次前向，<span className="hl">绰绰有余</span></div>
+          <div className="zh">“查记忆”型问题正是文字接龙的舒适区：训练数据里见过千万遍，概率最高的下一个 token 就是“巴黎”。</div>
+        </div>
+        <div className="example">
+          <div className="en">「鸡兔同笼，头 35 个、脚 94 只，各几只？」→ 还是一次前向，<span className="hl">挤不下了</span></div>
+          <div className="zh">“假设全是鸡 → 算脚差 → 换算只数”是一条几步连环的链。直接开口作答，等于把整条链压进吐出第一个数字之前的那一次计算里 —— 第 15 课“走钢丝”讲过：一步踩空，满盘皆输。</div>
+        </div>
+        <p className="lead mt14">这不是模型“笨”，是架构分给每个 token 的思考预算就是恒定的一份 —— 难题没资格多领。把这个事实揣在兜里，你在产品里见过的一串现象立刻全通了：</p>
+        <div className="card">
+          <table className="match">
+            <thead><tr><th>你在 ChatGPT / DeepSeek 里看到的现象</th><th>背后的机制</th></tr></thead>
+            <tbody>
+              <tr><td><b>问常识秒答秒对；问多步应用题同样“秒答”，却常错</b></td><td className="ex">每个 token 的计算量恒定 —— 难题没有多分到一点算力，几步连环全挤进一次前向</td></tr>
+              <tr><td><b>加一句「请一步一步想」，正确率肉眼可见地涨</b></td><td className="ex">思维链：写出的步骤进入上下文，成为后续 token 的依据（本课第一节）</td></tr>
+              <tr><td><b>开“深度思考”后回答前转圈良久，还能展开一段灰色思考过程</b></td><td className="ex">推理模型在生成草稿 —— 用测试时计算换答对率（本课第二节）</td></tr>
+              <tr><td><b>同一道难题，推理模式更慢、更贵，但确实更准</b></td><td className="ex">草稿 token 也要逐个生成、也按 token 计费 —— 延迟和账单，换的就是答对率</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="lead mt14">既然难题败在“思考预算恒定”，最朴素的解法就摆在眼前：能不能让模型像人一样，先打草稿再作答？2022 年，研究者发现答案是 —— 能，而且只要一句话。</p>
+      </Lsec>
+
+      <Lsec
+        title="📖 思维链：一句话，把心算变笔算"
+        lead="谷歌的研究者 2022 年发现：不动模型一个参数，只在提问时让它“把步骤写出来”—— 给几个带步骤的范例，或干脆加一句「让我们一步一步想」—— 大模型在数学应用题上的答对率立刻大涨，部分测试集上翻了两三倍。这招被命名为思维链（Chain of Thought，CoT），就是第 16 课技法③的本尊。先看它长什么样："
+      >
+        <div className="example">
+          <div className="en">直答：「外套先涨价一成、再降价一成，比原价贵还是便宜？」→「一样。」✗</div>
+          <div className="zh">涨完再降，基数已经变了 —— 但“一样”是直觉里最顺滑的下文，系统 1 一口咬下。</div>
+        </div>
+        <div className="example">
+          <div className="en">思维链：同一题 + 一句「请一步步想」→「设原价 100 元；涨一成到 110 元；再降一成要降 11 元，得 99 元 —— <span className="hl">比原价便宜</span>。」✓</div>
+          <div className="zh">同一个模型，一个参数没动。唯一的区别：答案前面多了三行字。</div>
+        </div>
+        <p className="lead mt14">为什么“多写几行字”就能救命？拆成三层看 —— 每一层都是前面课程埋好的机制，这里只是接上电：</p>
+        <div className="use-grid">
+          <div className="card use-card"><div className="label">第一层 · 草稿进上下文</div><div className="en">写下的字 = <b>新的依据</b></div><div className="zh">模型生成的每个 token 都会排进上下文（第 17 课的书桌）。自己写的草稿和你打的问题享受同等待遇 —— 后续所有生成都以它为条件。</div></div>
+          <div className="card use-card"><div className="label">第二层 · 心算变笔算</div><div className="en">中间结果<b>落在纸面</b></div><div className="zh">「涨一成到 110 元」一旦写出来，下一步就不用在“脑中”硬记 —— 注意力直接回头看这行字（第 9 课）。不靠记忆靠纸面，错误率骤降。</div></div>
+          <div className="card use-card"><div className="label">第三层 · 大题化小</div><div className="en">一道大题 = <b>多次小前向</b></div><div className="zh">四步的题拆成四次“只走一步”的生成，每一步的难度都落回一次前向能稳吃的范围 —— 一串系统 1，接力模拟出了系统 2。</div></div>
+        </div>
+        <p className="lead mt14">一句话总结思维链：<b>它没有让模型变聪明，只是让每一步都退回系统 1 能稳吃的难度。</b>但作为 prompt 层面的技巧，它有三个天生软肋：第一，<b>得靠你提醒</b> —— 忘了这句“咒语”，模型就回到抢答模式；第二，<b>一条道走到黑</b> —— 接龙生成不回头（第 12 课），第二步写错了它极少主动擦掉重来，后面整条链跟着错；第三，<b>不会换思路</b> —— 一条路走进死胡同，它不会退回岔口试另一条。“会打草稿”和“草稿打得好”是两回事。把后者也教给模型的，是 2024 年开始的下一幕。</p>
+      </Lsec>
+
+      <Lsec
+        title="📖 推理模型：把打草稿炼成本能"
+        lead="2024 年 9 月，OpenAI 发布 o1：第一个不用任何提醒、自己先写长草稿再作答的主流模型。2025 年 1 月，DeepSeek-R1 跟上，并把训练方法连同模型权重一起摊开给所有人。如果你在 DeepSeek 里勾过“深度思考”，对这一幕不会陌生："
+      >
+        <div className="example">
+          <div className="en">提问后先滚出一大段灰色小字：「嗯，用户问的是排期冲突……先试着按依赖排序……<span className="hl">等等，这里不对</span>，A 和 B 不能并行，我重新算一下……」</div>
+          <div className="zh">几十秒后才出现正式回答。那段灰色小字就是草稿 —— 不是表演给你看的，是它答题的真实工序（“真实”到什么程度，误区一节再泼一盆冷水）。ChatGPT 的“思考中…”、Claude 的扩展思考，同理，只是草稿默认折叠或隐藏。</div>
+        </div>
+        <p className="lead mt14">怎么把“打草稿”从技巧炼成本能？最直觉的路是第 13 课的老配方 SFT：雇人写几百万份完美草稿让模型模仿。这条路有两个死结：教科书级的草稿<b>又贵又少</b>；更要命的是，人类的解题路径未必是对模型最顺手的路径 —— 逼它模仿，像逼左撇子照右手字帖练字。突破口藏在任务本身：<b>数学题的答案，机器能自动判分；代码对不对，跑一遍测试就知道。</b>对错既然不需要人来评，就可以让模型放开手脚自己试 —— 试对了给糖。这正是强化学习的用武之地：</p>
+        <div className="card flow-card">
+          <div className="flow">
+            <div className="flow-step"><span className="num">1</span><span className="txt"><b>出题。</b>从可自动验证的题库里抽题：数学题配标准答案，编程题配单元测试。</span></div>
+            <div className="flow-step"><span className="num">2</span><span className="txt"><b>放手生成。</b>让模型自由写“草稿 + 答案”，同一道题采样很多份 —— 思路五花八门，长短不一。</span></div>
+            <div className="flow-step"><span className="num">3</span><span className="txt"><b>机器判分。</b>只看最终答案对不对，不评判草稿写得“像不像人”—— 没有人类阅卷员，规模想多大就多大。</span></div>
+            <div className="flow-step"><span className="num">4</span><span className="txt"><b>强化。</b>引向正确答案的草稿被奖励，模型朝“那样打草稿”的方向更新。和第 13 课的 RLHF 同门，只是奖励来自“对不对”的硬标准，不是人类口味。</span></div>
+            <div className="flow-step"><span className="num">5</span><span className="txt"><b>循环成千上万轮。</b>草稿越来越长、越来越“会”—— 哪些招式有用，由答对率说了算。</span></div>
+          </div>
+        </div>
+        <p className="lead mt14">整个流程里，没有人教过模型任何一个“思考动作”。但训练到中段，奇妙的事发生了：R1 的训练记录显示，模型<b>自发</b>写出「等等，让我重新检查这一步」，然后真的回头找到错误、换一条思路重来 —— 研究团队把这一刻称作“顿悟时刻”（aha moment）。反思、验算、回溯、换思路 —— 恰好补上思维链三个软肋的招式，全是在“答对才有糖”的压力下自己长出来的，像第 15 课的涌现一样，没人把它们写进任何一行代码。R1 把权重和方法和盘托出之后，几个月内全行业跟进出各自的推理模型 —— 这张开源与闭源的版图，第 25 课展开细说。</p>
+        <p className="lead mt14">现在可以兑现第 15 课结尾埋的钩子了。那一课说：纯堆参数的收益放缓，前沿把筹码押向“测试时计算”。推理模型就是这枚筹码落地的样子 —— 在“把模型养大”之外，AI 多了第二条提升曲线：</p>
+        <div className="contrast">
+          <div className="card contrast-card">
+            <div className="tag"><span className="pill pill-ink">第一条曲线 · 训练时计算</span></div>
+            <div className="big">把模型<span className="gap">养大</span> —— 更多参数、更多数据、更多 GPU</div>
+            <p className="note">第 15 课的主角。投入以月、以亿美元计，一次性的“教育投资”，换一个更博学的底子。</p>
+          </div>
+          <div className="card contrast-card">
+            <div className="tag"><span className="pill pill-sage">第二条曲线 · 测试时计算</span></div>
+            <div className="big">答题时<span className="hl">多想一会儿</span> —— 草稿额度越足，难题得分越高</div>
+            <p className="note">o1 的技术报告里给出了和第 15 课神似的上升曲线，横轴换成了“答题时的思考量”。投入以秒、以 token 计 —— 按题付费的“临场发挥”。</p>
+          </div>
+        </div>
+        <p className="lead mt14">第二条曲线不是免费午餐，账单分两栏：<b>延迟</b> —— 转圈几十秒，在闲聊场景足以劝退用户；<b>费用</b> —— 草稿 token 和答案 token 一样逐个生成、一样计费，一道难题的草稿常比最终答案长几倍到几十倍（各家计价细节不同，以官网为准）。于是“该不该开慢思考”成了真功夫，直觉只有一条：</p>
+        <div className="use-grid cols-2">
+          <div className="card use-card"><div className="label">值得多想一会儿</div><div className="en">数学 · 代码 · <b>多约束规划</b></div><div className="zh">链条长、错一步全错、对错常可验证 —— 草稿的每一行都在实打实地换答对率，延迟和费用花得值。</div></div>
+          <div className="card use-card"><div className="label">杀鸡不用牛刀</div><div className="en">闲聊 · 摘要 · <b>翻译改写</b></div><div className="zh">一步到位的“直觉题”，普通模型一次前向就稳，还更快更便宜。开慢思考只多了等待和账单，偶尔还“想多了”绕弯。</div></div>
+        </div>
+        <p className="footnote mt14">不少产品已经把这条直觉做成了开关甚至自动分诊：简单问题走快路，难题才进慢思考。你手动选型的判断力，正在变成系统里的路由逻辑。</p>
+        <p className="lead mt14">纸上谈兵不如练一把。下面 6 个任务，该不该开“慢思考”？先自己判断，再点卡片对答案：</p>
+        <div className="flip-grid">
+          {FLIPS.map((f, i) => <FlipCard key={i} q={f.q} pill={f.pill} why={f.why} />)}
+        </div>
+      </Lsec>
+
+      <Lsec
+        title="🎛️ 交互演示：同一道题，两种答法"
+        lead="把全课收进一道经典题。先看“直答模式”怎么翻车，再切到“慢思考模式”逐行播放草稿 —— 盯住两件事：每一行如何踩着上一行往前走；以及第 ⑤ 行那个推理模型的招牌动作 —— 验算。"
+      >
+        <ReasonDemo />
+      </Lsec>
+
+      <Lsec title="⚠️ 常见误区">
+        <div className="card alert-card row-list">
+          <div className="alert-item">
+            <div className="wrong-right">
+              <div className="wr-line bad"><span className="wr-mark">✗</span><span className="wr-text">推理模型全面碾压普通模型，以后什么任务都该用它</span></div>
+              <div className="wr-line good"><span className="wr-mark">✓</span><span className="wr-text">它的优势集中在长链条、可验证的难题；简单任务上更慢更贵，还可能“想多了”绕弯</span></div>
+            </div>
+            <p className="why"><b>病因：</b>把“新一代”理解成“全面替代”。慢思考的收益来自“把大题拆小”，可闲聊、改写、翻译本来就是一步到位的小题 —— 草稿带来的额外 token 纯属成本。研究和实测还发现“过度思考”现象：简单问题生成大段草稿，偶尔把本来正确的第一直觉推翻成错的。普通模型与推理模型是工具箱里的两把工具，不是新旧交替 —— 这也是为什么各家产品都保留了“快 / 慢”两条路。</p>
+          </div>
+          <div className="alert-item">
+            <div className="wrong-right">
+              <div className="wr-line bad"><span className="wr-mark">✗</span><span className="wr-text">展开的那段思考过程，就是模型脑子里真实的思考</span></div>
+              <div className="wr-line good"><span className="wr-mark">✓</span><span className="wr-text">草稿是“被奖励出来的有用文本”—— 它确实帮模型答对题，但不保证如实反映内部计算</span></div>
+            </div>
+            <p className="why"><b>病因：</b>拟人化加字面化。草稿和答案一样是逐 token 接龙生成的文本（第 12 课），训练只奖励“草稿引向正确答案”，从没奖励过“草稿如实汇报计算过程”。可解释性研究发现两者可能不一致：模型有时先“心里有了”倾向的答案，再生成一段看起来合理的推导 —— 事后合理化；草稿里只字未提的因素也可能实际左右了答案。诚实地说：草稿非常有用，但把它当“思维直播”看，目前证据不够 —— 这仍是开放的研究问题。</p>
+          </div>
+        </div>
+      </Lsec>
+
+      <Lsec title="✍️ 小练习">
+        <div className="card quiz row-list">
+          <QuizItem q="1. 回到开头的球拍题。用本课机制解释：模型为什么容易答错这类“陷阱题”？为什么在提问里加一句“先写出每一步再作答”就常常能救回来？">
+            <b>错因：</b>“0.1 元”是直觉里最顺滑的接龙 —— 一次前向押概率最高的下文，正中陷阱；每个 token 思考量恒定，“验证一下”这个动作根本没有发生的机会。<b>救法：</b>写步骤让中间结果进入上下文 ——「如果球 0.1 元，球拍 1.1 元，总价 1.2 元，不对」白纸黑字摆在桌面上，后续 token 在纸面证据的条件下生成，陷阱当场现形。心算变笔算。
+          </QuizItem>
+          <QuizItem q="2. 朋友盯着 DeepSeek-R1 滚动的思考过程感叹：“你看，AI 思考的样子和人一模一样，这就是它的内心独白。” 这句话有两处要打折扣，分别是什么？">
+            <b>第一处：</b>草稿是逐 token 接龙生成的文本，训练奖励的是“引向正确答案”，不是“如实汇报内部计算”—— 研究发现草稿与真实计算路径可能不一致，有时是事后合理化，所以“内心独白”言过其实。<b>第二处：</b>“和人一模一样”也不成立 —— 反思、验算这些招式是强化学习在可验证任务上筛出来的得分策略，长得像人类思考，出身完全不同。
+          </QuizItem>
+          <QuizItem q="3. 你在公司负责接入 AI，手上三件事：① 客服 FAQ 自动回复 ② 跨部门项目排期（人力、工期、依赖互相牵制）③ 营销文案润色。哪些值得开推理模式？用“两笔账”说明理由。">
+            <b>只有 ② 值得。</b>两笔账：<b>时间账</b> —— 推理模式开口前要先生成大段草稿，FAQ 用户等不起几十秒，排期任务等得起也值得等；<b>金钱账</b> —— 草稿 token 照常计费，常比答案长几倍到几十倍，① ③ 这类一步到位的任务花这笔钱换不来答对率提升，还可能“想多了”把本来顺手的文案改绕。
+          </QuizItem>
+        </div>
+      </Lsec>
+    </>
+  )
+}

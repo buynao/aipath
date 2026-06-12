@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 8 课 · 词变成数字：Embedding 与向量空间 — 拓智</title>
+<meta name="description" content="给每个词在空间里安排一个坐标，意思越近坐得越近 —— 这就是 embedding。在 3D 星空里漫游词向量，亲眼看国王 − 男人 + 女人 ≈ 女王。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：公式行 + 3D 星空容器 ---------- */
+.mt-14 { margin-top: 14px; }
+.formula { font-size: clamp(19px, 3.2vw, 24px); font-weight: 700; text-align: center; letter-spacing: 0.02em; padding: 4px 0 6px; }
+.formula .op { color: var(--fg-2); padding: 0 4px; font-weight: 500; }
+.formula .res { color: var(--terracotta); }
+#cosmos { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 430px; }
+#cosmos canvas { width: 100%; height: 100%; display: block; border-radius: var(--r-md); touch-action: none; }
+.cosmos-fallback { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 24px; background: var(--bg-inset); border-radius: var(--r-md); font-size: 14px; color: var(--fg-1); }
+.cosmos-fallback b { color: var(--fg-0); }
+.chip-play { color: var(--terracotta); border-color: var(--terracotta); }
+.chip-play:hover { border-color: var(--terracotta); background: var(--terracotta-bg); }
+
+/* ---------- 训练步进演示（深入展开①） ---------- */
+#train-svg .tw { transition: transform 0.8s cubic-bezier(0.22, 0.8, 0.3, 1); }
+#train-svg .tw circle { transition: fill 0.8s ease; }
+#train-svg .tw text { font-size: 13px; font-weight: 600; fill: var(--fg-0); }
+.errbar-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--fg-1); }
+.errbar { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--bg-inset); overflow: hidden; }
+.errbar i { display: block; height: 100%; background: var(--terracotta); border-radius: var(--r-pill); transition: width 0.7s ease; }
+.errbar-row .ev { font-weight: 700; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--fg-0); }
+
+/* ---------- 「苹果」语境漂移演示（深入展开②） ---------- */
+#ctx-svg #apple-g { transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  #train-svg .tw, #train-svg .tw circle, #ctx-svg #apple-g, .errbar i { transition: none; }
+}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第二阶段 · 原理篇</span> / <span>第 8 课</span>
+    </div>
+    <h1>词变成数字：Embedding 与向量空间</h1>
+    <p class="subhead">国王 − 男人 + 女人 ≈ 女王。在 3D 星空里漫游词向量空间，理解 AI 眼中的"语义"长什么样。</p>
+    <div class="meta">
+      <span class="pill pill-ink">进阶</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span>
+      <span class="pill pill-terracotta">核心难点</span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 35 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>一句话说清什么是 embedding：给每个词在空间里安排一个坐标，意思越近、坐得越近</div>
+      <div class="goal-item"><span class="tick">✓</span>看懂明星算式 国王 − 男人 + 女人 ≈ 女王 —— 词与词的"关系"也变成了方向一致的箭头</div>
+      <div class="goal-item"><span class="tick">✓</span>分清示意与真相：真实向量是几百到几千维的，而且坐标不是人标的，是模型自己学出来的</div>
+      <div class="goal-item"><span class="tick">✓</span>亲手"训练"一次：在交互演示里看坐标怎么被亿万道填空题一步步推出来</div>
+      <div class="goal-item"><span class="tick">✓</span>看清 embedding 在 ChatGPT 体内的位置：第一站查表领坐标，随后被上下文层层改写成"活"向量</div>
+      <div class="goal-item"><span class="tick">✓</span>知道"万物皆可 embedding"：语义搜索、推荐系统、RAG 检索共用的同一块地基</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：把词钉进空间，"意思"第一次能算了</h2>
+    <p class="lead">上一课 CNN 吃的是像素 —— 图片天生就是数字。可文字不是：计算机看「猫」这个字，只看到一个字符编号，编号挨着的两个字意思可以毫不相干。Embedding（嵌入）干的事就一件：<b>给每个词在一个空间里安排一个坐标点，并且保证 —— 意思越近的词，坐得越近。</b>这个坐标，就是这个词的 embedding。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-terracotta">人类的方式 · 查词典</span></div>
+        <div class="big">「猫」= <span class="gap">"一种哺乳动物，善捕鼠，会喵喵叫……"</span></div>
+        <p class="note">用别的词解释这个词，循环不止：查"哺乳动物"又得查"哺乳"。计算机读完整本词典，仍然算不出"猫"和"狗"到底有多像。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">机器的方式 · 给坐标</span></div>
+        <div class="big">「猫」= <span class="hl">(0.82, −1.30, 2.41, …)</span></div>
+        <p class="note">一个词 = 空间里的一个点。"像不像"不需要任何解释 —— 量一下两点之间的距离就行，距离是小学就会算的东西。</p>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en"><span class="hl">距离 = 语义相似度</span>，这是本课唯一要背下来的等式</div>
+      <div class="zh">猫和狗离得近，猫和披萨离得远，猫和"民法典"几乎在两个星系。意义（meaning）这种最虚无缥缈的东西，<b>第一次变成了可以计算的对象</b> —— 后面的注意力、Transformer、第 18 课的 RAG，全部踩在这块地基上。</div>
+    </div>
+    <p class="lead mt-14">所以当你给 ChatGPT 发一句话时，它做的第一件事不是"读"，而是把每个词换成这样一串数字 —— 词先变成向量，神经网络才有的吃。Embedding 是文字世界和数字世界之间唯一的海关。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🧭 明星算式：国王 − 男人 + 女人 ≈ 女王</h2>
+    <p class="lead">坐标既然是数字，就能加减。2013 年 word2vec 论文里的一个发现让全世界惊掉下巴：对词向量做小学算术，结果居然有意义。</p>
+    <div class="example">
+      <div class="formula">国王 <span class="op">−</span> 男人 <span class="op">+</span> 女人 <span class="op">≈</span> <span class="res">女王</span></div>
+      <div class="zh">人话拆解：<b>女人 − 男人</b> 这两点之间的箭头，捕捉到的正是"性别"这层关系；把这支箭头原样平移到「国王」头上，落点离「女王」最近。换句话说 —— <b>词与词的"关系"，在这个空间里是一个可以搬运的方向。</b></div>
+    </div>
+    <p class="lead mt-14">更妙的是，同一种关系对应的箭头是<b>互相平行</b>的：所有"性别箭头"指向一致，所有"首都箭头"指向一致。模型没人教过它什么叫首都，但"首都关系"作为一个方向，自己浮现在了空间里。</p>
+    <table class="match card">
+      <thead><tr><th>关系</th><th>箭头 A</th><th>箭头 B</th><th>几何特征</th></tr></thead>
+      <tbody>
+        <tr><td class="be">性别</td><td>男人 → 女人</td><td>国王 → 女王</td><td class="ex">方向近似平行</td></tr>
+        <tr><td class="be">首都</td><td>中国 → 北京</td><td>日本 → 东京</td><td class="ex">方向近似平行</td></tr>
+        <tr><td class="be">时态（英文语料）</td><td>walk → walked</td><td>go → went</td><td class="ex">方向近似平行</td></tr>
+      </tbody>
+    </table>
+    <p class="lead mt-14">一句校准：注意算式里是 <b>≈ 不是 =</b>。这种类比在真实模型里"经常成立、并不保证"，研究者也发现不少例子要靠排除原词等小技巧才漂亮。把它当直觉的窗口，别当数学定理。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🔬 两个关键澄清：别被星空图骗了</h2>
+    <p class="lead">下面马上要看 3D 演示，但先打两针预防针 —— 这两点恰恰是 embedding 最容易被误解的地方。</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">澄清一 · 关于维度</div>
+        <div class="en">3D 星空只是<b>降维示意</b></div>
+        <div class="zh">真实 embedding 通常是<b>几百到几千维</b>：word2vec 时代常用 300 维，如今大模型内部的词向量普遍上千维。维度高，才装得下一个词的多重身份 ——「苹果」要同时靠近水果、手机和"红色"。任何 3D 图都像把地球仪压成平面地图：方便看，必有失真。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">澄清二 · 关于来历</div>
+        <div class="en">坐标<b>不是人标的</b>，是学出来的</div>
+        <div class="zh">没有任何语言学家给"猫"填过坐标。模型在海量文本里反复做"预测邻居词"的填空题，用第 4 课的梯度下降把猜错的程度一点点压低 —— <b>谁总出现在相似的语境里，谁的坐标就被一点点推近</b>。全自动，零人工标注，坐标只是训练的副产品。</div>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">"看一个词总跟谁作伴，你就懂了它。" —— 语言学家 J.R. Firth，1957</div>
+      <div class="zh">这叫<b>分布假设</b>。"猫"和"狗"都能填进"____ 在沙发上睡觉""带 ____ 去打疫苗"，于是它们被推到一起。Embedding 学到的"意思"，本质是亿万条语境的统计压缩。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：词向量星空</h2>
+    <p class="lead">下面是一片手工设计的 3D 教学星空：36 个中文词、6 个语义群落。拖动旋转、滚轮缩放，先看"抱团"，再点红色按钮看类比算式动起来。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🌌 交互演示 · 漫游词向量空间</span>
+        <span class="demo-hint">拖动旋转 · 滚轮缩放 · 点胶囊高亮群落</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <div id="cosmos" aria-label="3D 词向量星空：36 个中文词按语义聚成动物、食物、情感、职业等群落，可旋转缩放"></div>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="cosmos-chips">
+            <button class="chip active" data-key="all">全部</button>
+            <button class="chip" data-key="animal">动物</button>
+            <button class="chip" data-key="food">食物</button>
+            <button class="chip" data-key="emotion">情感</button>
+            <button class="chip" data-key="job">职业</button>
+            <button class="chip" data-key="relation">关系向量</button>
+          </div>
+          <div class="chips mt-14">
+            <button class="chip chip-play" id="btn-analogy">▶ 演示：国王 − 男人 + 女人</button>
+          </div>
+          <h4 id="cosmos-title">整片星空 · 36 个词</h4>
+          <p id="cosmos-desc">意思相近的词在空间里自动抱团，群落之间隔着大片"真空"。转一转就能体会：方位本身没有意义，<b>有意义的只是相对距离</b>。</p>
+        </div>
+      </div>
+    </div>
+    <p class="lead mt-14">再次提醒：这些坐标是作者为教学手工摆放的 3D 示意。真实模型里它们是几百上千维、由训练自动确定的 —— 但"近 = 像、关系 = 方向"这两条直觉，原封不动地成立。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 深入展开｜坐标是怎么被"推"出来的：一道做了亿万遍的填空题</h2>
+    <p class="lead">前面反复说"坐标是学出来的"，这一节把"学"字拆开看。你会发现整个过程朴素得近乎离谱：模型从头到尾只在做一件事 —— 填空题。没有语言学家参与，没有人批改过一份"语义标准答案"。</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">是什么 · 一句话</div>
+        <div class="en">训练 = 亿万道<b>填空题</b></div>
+        <div class="zh">把一句正常的话挖掉一个词 ——「猫在沙发上 ____」—— 让模型用周围的词去猜被挖掉的是什么。word2vec 干的就是这件事；今天大模型预训练的"猜下一个词"（第 12 课），是同一招的放大版。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">为什么非它不可</div>
+        <div class="en">因为"意思"<b>没法人工标</b></div>
+        <div class="zh">汉语几十万词，每个词上千个坐标值，没有任何团队填得完；更要命的是，"意思"本来就没有标准答案，唯一可靠的线索是<b>用法</b>。而互联网恰好免费提供了亿万句"自带答案的填空题"—— 一个标注员都不用雇。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">它如何一步步工作？只有四步，第 4 课的梯度下降在这里重新登场：</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">第 1 步</div>
+        <div class="en">随机撒点</div>
+        <div class="zh">训练开始时，每个词领到一串纯随机数字。此刻「猫」可能紧挨着「民法典」—— 空间一片混沌，模型对语言一无所知。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 2 步</div>
+        <div class="en">做题：用邻居猜空格</div>
+        <div class="zh">读到「猫在沙发上打盹」，遮住「猫」，让模型拿"沙发""打盹"的坐标去猜空格 —— 它会给词表里每个词打一个"像不像答案"的分。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 3 步</div>
+        <div class="en">错了就推一把</div>
+        <div class="zh">猜错了，就顺着"哪里错了"回头修改坐标：把正确答案往这个语境拉近一点，把瞎猜的词推远一点。每次只动一点点 —— 正是第 4 课下山的那一小步。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">第 4 步</div>
+        <div class="en">重复亿万次</div>
+        <div class="zh">「猫」和「狗」总出现在同款语境里，于是被一次次推向同一片区域。群落、性别箭头、首都箭头 —— 全是这个笨办法攒出来的副产品。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">空说无凭，下面亲手"训练"一次。十个词从随机位置出发，每点一次「训练一步」，就相当于做完一大批填空题 —— 盯住灰点怎么变色、归队：</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🧪 交互演示 · 亲手把坐标"推"出来</span>
+        <span class="demo-hint">点「训练一步」· 看群落自己浮现</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="train-svg" viewBox="0 0 440 330" width="440" aria-label="训练演示：十个词从随机位置出发，随训练轮次逐步聚成动物、食物、情感三个群落"></svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips">
+            <button class="chip chip-play" id="train-step">▶ 训练一步</button>
+            <button class="chip" id="train-all">⏩ 一键训完</button>
+            <button class="chip" id="train-reset">⟲ 重置</button>
+          </div>
+          <h4 id="train-title"></h4>
+          <p id="train-desc"></p>
+          <div class="errbar-row"><span>猜错程度</span><div class="errbar"><i id="train-err"></i></div><span class="ev" id="train-errv"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">这个办法的死穴：<span class="hl">一个词只有一个点</span></div>
+      <div class="zh">「苹果真甜」和「苹果发布会」里的"苹果"明明是两个意思，老式词向量却只能发给它一个坐标 —— 多义词被压扁成了平均值。另外，语料里的偏见也会原样压进空间：如果文本里"医生"总和"他"作伴，空间里就会留下这道歪箭头。多义的难题怎么破？接着往下看 —— 这正是大模型对老词向量的关键跃迁。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 深入展开｜在 ChatGPT 体内：embedding 是第一站，而且是"活"的</h2>
+    <p class="lead">word2vec 是 2013 年的技术，为什么今天用 ChatGPT、Claude 的你还必须懂它？因为每个大模型体内都装着它的继承者，而且完成了一次关键升级：坐标从"死"的变成了"活"的。先看它在大模型流水线里的位置 ——</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">入口 · 第一站</div>
+        <div class="en">每个 token 先<b>查表领坐标</b></div>
+        <div class="zh">你发出的话先被切成 token（第 11 课细讲），模型做的第一件事就是到体内那张 embedding 表里，把每个 token 换成一个向量。从这一刻起，所有计算只见数字，再也见不到文字。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">中段 · 几十层"调味"</div>
+        <div class="en">向量被上下文<b>不断改写</b></div>
+        <div class="zh">查表领到的只是"字典义"。接下来几十层注意力（下一课）让每个词的向量参考周围的词反复修正 —— 整句读完，「苹果」可能已被「发布会」拽进科技区。这叫<b>语境化向量</b>，是大模型与 word2vec 的分水岭。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">出口 · 还是比距离</div>
+        <div class="en">生成回答也靠<b>这片空间</b></div>
+        <div class="zh">模型吐下一个词时，本质是拿当前语境的向量去和词表里所有候选词比"匹配度"—— 谁匹配谁概率大（怎么按概率抽签，第 14 课讲）。大模型的一进一出，都发生在向量空间里。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">"活"坐标长什么样？下面这个演示里，「苹果」的位置不再固定 —— 点不同的句子，看上下文把它拽向哪边：</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🍎 交互演示 · 同一个「苹果」，两个灵魂</span>
+        <span class="demo-hint">点句子 · 看上下文拽动坐标</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="ctx-svg" viewBox="0 0 440 300" width="440" aria-label="语境演示：左侧水果群落、右侧科技群落，「苹果」的点随所选句子在两个群落之间移动">
+            <circle cx="110" cy="112" r="84" style="fill:var(--sage-bg); stroke:var(--sage); stroke-width:1.2; stroke-dasharray:5 5"/>
+            <text x="110" y="36" text-anchor="middle" style="fill:var(--sage); font-size:12px; font-weight:700">水果群落</text>
+            <circle cx="330" cy="114" r="86" style="fill:var(--sky-bg); stroke:var(--sky); stroke-width:1.2; stroke-dasharray:5 5"/>
+            <text x="330" y="34" text-anchor="middle" style="fill:var(--sky); font-size:12px; font-weight:700">科技群落</text>
+            <g style="transform:translate(78px,98px)"><circle r="5" style="fill:var(--sage)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">香蕉</text></g>
+            <g style="transform:translate(134px,76px)"><circle r="5" style="fill:var(--sage)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">桃子</text></g>
+            <g style="transform:translate(100px,156px)"><circle r="5" style="fill:var(--sage)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">甜</text></g>
+            <g style="transform:translate(352px,100px)"><circle r="5" style="fill:var(--sky)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">手机</text></g>
+            <g style="transform:translate(300px,74px)"><circle r="5" style="fill:var(--sky)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">电脑</text></g>
+            <g style="transform:translate(336px,162px)"><circle r="5" style="fill:var(--sky)"/><text y="-10" text-anchor="middle" style="fill:var(--fg-1); font-size:12px; font-weight:600">发布会</text></g>
+            <g id="apple-g" style="transform:translate(218px,236px)"><circle r="9" style="fill:var(--terracotta)"/><text y="-16" text-anchor="middle" style="fill:var(--fg-0); font-size:14px; font-weight:700">苹果</text></g>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="ctx-chips">
+            <button class="chip active" data-key="none">「苹果」孤零零一个词</button>
+            <button class="chip" data-key="fruit">「苹果真甜，再买两斤」</button>
+            <button class="chip" data-key="tech">「苹果发布了新款手机」</button>
+          </div>
+          <h4 id="ctx-title"></h4>
+          <p id="ctx-desc"></p>
+        </div>
+      </div>
+    </div>
+    <p class="lead mt-14">懂了"查表 + 改写"这条流水线，你平时在 ChatGPT / Claude 里看到的很多"灵性瞬间"就都有了解释 ——</p>
+    <table class="match card">
+      <thead><tr><th>你看到的现象</th><th>背后的向量空间机制</th></tr></thead>
+      <tbody>
+        <tr><td class="be">换种说法问，它照样懂</td><td class="ex">「怎么退货」和「如何申请退款」字面几乎不重合，向量却近乎重合 —— 模型理解的是空间里的<b>位置</b>，不是字面。</td></tr>
+        <tr><td class="be">打错字也大多能猜对</td><td class="ex">「机器学系是什么」—— 上下文会把错字的向量"拉回"正确语义附近：邻居词决定了它落进哪个群落。</td></tr>
+        <tr><td class="be">中文提问，能用上英文世界的知识</td><td class="ex">多语言训练把「猫」和 cat 嵌到了几乎同一个点 —— 知识挂在位置上，不挂在语种上。</td></tr>
+        <tr><td class="be">接上知识库就能答内部问题</td><td class="ex">RAG：把公司文档切块算成向量入库，提问时按距离捞最近的几块塞给模型 —— 第 18 课带你亲手搭。</td></tr>
+      </tbody>
+    </table>
+    <div class="example mt-14">
+      <div class="en">边界提醒：距离近 = <span class="hl">语境像</span>，不等于"事实对"</div>
+      <div class="zh">「我爱你」和「我恨你」的向量相当近 —— 句式、场景几乎一样。所以语义检索偶尔会捞回"长得像但答非所问"的段落；向量空间也分不清真话和谣言，它压缩的是语言的统计规律，不是世界的真相。这条边界，第 18 课（RAG 的坑）和第 29 课（幻觉与评估）还会反复用到。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🌐 万物皆可 embedding</h2>
+    <p class="lead">这套"压成向量、按距离办事"的思路完全不挑对象。只要能定义"谁和谁应该相近"，任何东西都能被嵌进同一种空间 —— 这正是它成为现代 AI 基础设施的原因。</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">不止是词</div>
+        <div class="en">句子与文档 <b>→ 一个点</b></div>
+        <div class="zh">整段话也能压成一个向量："今天股市大跌"和"A 股全线重挫"用词不同，点却紧挨着 —— 比对关键词的老办法看不出这层关系。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">跨越媒介</div>
+        <div class="en">图片与文字 <b>→ 同一空间</b></div>
+        <div class="zh">CLIP 这类模型把图和文嵌进同一片空间："一只奔跑的狗"这句话的点，就挨着狗狗照片的点。以文搜图、以图搜图由此而来。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">连人也可以</div>
+        <div class="en">用户与商品 <b>→ 同一空间</b></div>
+        <div class="zh">推荐系统把你的口味和千万件商品放进一个空间，你的点附近漂着什么，首页就给你推什么 —— "猜你喜欢"猜的其实是距离。</div>
+      </div>
+    </div>
+    <table class="match card mt-14">
+      <thead><tr><th>应用</th><th>怎么用"距离"办事</th></tr></thead>
+      <tbody>
+        <tr><td class="be">语义搜索</td><td class="ex">搜"便宜的住处"，能命中"经济型酒店" —— 关键词一个不重合，向量距离却很近。搜索从"对字"升级为"对意思"。</td></tr>
+        <tr><td class="be">推荐 / 去重</td><td class="ex">把你听过的歌变成向量求平均，附近的歌就是新歌单；两篇新闻向量几乎重合，就是洗稿或重复，自动归并。</td></tr>
+        <tr><td class="be">RAG 检索</td><td class="ex">公司文档切块、向量化入库；你提问时，先按距离捞出最相关的几块，再喂给大模型作答 —— 完整流程第 18 课拆给你看。</td></tr>
+      </tbody>
+    </table>
+    <p class="lead mt-14">业界甚至把这件事做成了独立的产品形态：专门的 <b>embedding 模型</b>（输入文字、吐出向量，不聊天）和<b>向量数据库</b>（专门按距离检索的仓库）。第 18、28 课，你会亲手把这两块积木拼成一个能回答内部问题的系统 —— 到那时回头看，会发现整套系统的灵魂就是本课这一句：距离 = 语义相似度。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">每个维度都有明确含义，比如第 7 维代表"性别"、第 42 维代表"大小"</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">绝大多数维度没有人能读懂的含义，"性别"这类概念散落在几百个维度的组合方向里</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把 embedding 想象成一张人设计的表格 —— 身高一栏、性别一栏。实际上坐标系是训练自动形成的，单独抽出某一维看，几乎全是噪声；像"性别方向"这种可解释的箭头，是研究者<b>事后</b>从整体里挖出来的维度组合，不是某一根坐标轴。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">embedding 是查一本巨大的"词→数字"词典查出来的固定数值</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">它是模型在海量文本上训练出来的统计产物 —— 换一批语料、换一个模型，坐标就完全不同</span></div>
+        </div>
+        <p class="why"><b>病因：</b>"词变数字"听起来像查表。早期 word2vec 训练完确实能存成一张静态表，但表里的数值是<b>学</b>出来的，不是谁规定的；而现代大模型里，同一个词的向量还会随上下文实时变化 ——「苹果发布会」和「苹果真甜」里的"苹果"不是同一个点，怎么变的，正是下一课注意力机制的故事。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">两句话向量距离近，说明它们意思相同、内容可信</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">距离近只说明"语境相似"—— 反义句、立场相反的句子常常是近邻</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"语义相似度"听成了"等价"。embedding 来自"看谁总出现在同款语境"，而「股价大涨」和「股价大跌」恰恰共享同款语境，距离反而很近。做语义搜索和 RAG 时务必记住这一条 —— 否则会把"看起来像"的错误答案当成正确答案。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 用本课的概念解释：为什么在向量搜索里，搜"便宜的住处"能找到"经济型酒店"，哪怕两句话没有一个字相同？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">因为搜索比对的不是文字而是 <b>embedding 之间的距离</b>。"便宜的住处"和"经济型酒店"在海量文本里出现的语境高度相似（订房、价格、评价……），训练后它们的向量被推得很近 —— 距离近就会被检索出来，字面重不重合根本不参与计算。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 仿照明星算式做一道题：巴黎 − 法国 + 日本 ≈ <span class="blank">？</span>，并说出每一步在"搬运"什么。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>≈ 东京。</b>「巴黎 − 法国」这支箭头捕捉的是"首都"关系；把它平移加到「日本」上，落点自然在「东京」附近 —— 和性别箭头一样，首都箭头在空间里也是近似平行的。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 朋友兴奋地说："我发现模型向量的第 42 维存的就是词的褒贬！"这个说法有什么问题？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">问题在于<b>把"方向"当成了"坐标轴"</b>。绝大多数单个维度不可解读，褒贬这类语义通常是几百个维度的组合方向；就算他真在数据里找到了一个与褒贬相关的方向，那也是事后挖掘的产物，且换个模型、换批语料就会变 —— 没有任何机制保证它恰好落在第 42 根轴上。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">4. 在 word2vec 里「苹果」只有一个固定向量，在 ChatGPT 这类大模型里它却"会动"。用本课概念解释这个区别，并说明"动"的动力来自哪里。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">word2vec 是<b>静态词向量</b>：一词一点，「苹果」的水果义和公司义被压成一个平均位置。大模型里 token 先查 embedding 表领到初始向量，随后被几十层网络按上下文反复改写成<b>语境化向量</b> ——「苹果真甜」里它漂向水果群落，「苹果发布会」里漂向科技群落。"动力"来自周围的词：每个词参考邻居来更新自己，至于具体怎么参考，就是下一课注意力机制的内容。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="07-cnn-how-computers-see.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">07 计算机如何"看"：卷积神经网络 CNN</div>
+    </a>
+    <a class="card next" href="09-attention.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">09 注意力机制：AI 学会"划重点"</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script type="module">
+/* ---------- 词向量星空（three.js，仅本页引入） ---------- */
+(async () => {
+  const host = document.getElementById('cosmos');
+  if (!host) return;
+
+  const showFallback = (reason) => {
+    host.innerHTML =
+      '<div class="cosmos-fallback"><b>3D 演示未能加载</b>' +
+      '<p>' + reason + '</p>' +
+      '<p>文字版结论照样成立：36 个词按语义聚成 6 个群落 —— 动物、食物、情感、职业各自抱团；' +
+      '而「男人→女人」与「国王→女王」两支箭头互相平行，「中国→北京」与「日本→东京」也互相平行。' +
+      '把「女人 − 男人」这支箭头加到「国王」上，落点就在「女王」附近。</p></div>';
+  };
+
+  let THREE, OrbitControls;
+  try {
+    THREE = await import('three');
+    ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+  } catch (e) {
+    showFallback('加载 three.js 失败（通常是当前网络无法访问 CDN）。');
+    return;
+  }
+
+  try {
+    /* ---- 基础环境 ---- */
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    // THREE.Color 不认 rgba 的透明度（深色模式的 --fg-2 是 rgba），先剥掉 alpha 避免控制台警告
+    const cssColor = (n) => new THREE.Color(css(n).replace(/rgba\(([^,]+),([^,]+),([^,]+),[^)]+\)/, 'rgb($1,$2,$3)'));
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setClearColor(0x000000, 0);               // 透明背景，自动跟随深浅色
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    host.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 300);
+    camera.position.set(15, 8, 21);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, -1);
+    controls.enableDamping = true;
+    controls.autoRotate = !reduced;                    // 降级动效：reduce 时不自转，仍可手动拖
+    controls.autoRotateSpeed = 0.55;
+    controls.minDistance = 8;
+    controls.maxDistance = 70;
+
+    /* ---- 数据：36 个词，手工设计的语义簇 ---- */
+    const GROUP_COLOR = { animal: '--sage', food: '--amber', emotion: '--terracotta', job: '--sky', royal: '--fg-0', capital: '--fg-0' };
+    const WORDS = [
+      // 动物簇
+      ['猫', 'animal', -7.5, 3.5, -1.5], ['狗', 'animal', -6.4, 3.1, -2.3], ['老虎', 'animal', -7.9, 2.3, -2.8],
+      ['兔子', 'animal', -6.1, 4.1, -1.0], ['大象', 'animal', -8.5, 3.0, -3.3], ['熊猫', 'animal', -7.0, 4.4, -2.7],
+      // 食物簇
+      ['米饭', 'food', 7.4, -1.6, 3.4], ['面条', 'food', 6.5, -2.3, 2.6], ['饺子', 'food', 7.9, -2.7, 3.1],
+      ['披萨', 'food', 6.1, -1.3, 3.9], ['汉堡', 'food', 6.8, -3.1, 4.0], ['寿司', 'food', 8.0, -0.9, 2.4],
+      // 情感簇
+      ['开心', 'emotion', -1.4, -5.4, 5.4], ['悲伤', 'emotion', -2.7, -6.6, 4.6], ['愤怒', 'emotion', -1.7, -7.1, 5.9],
+      ['平静', 'emotion', -2.9, -5.1, 5.2], ['惊讶', 'emotion', -0.9, -6.1, 4.3], ['害怕', 'emotion', -2.2, -6.0, 6.3],
+      // 职业簇
+      ['医生', 'job', 3.4, 6.4, -4.6], ['教师', 'job', 2.5, 5.6, -5.5], ['工程师', 'job', 3.9, 6.9, -5.6],
+      ['厨师', 'job', 2.1, 6.2, -4.1], ['警察', 'job', 3.0, 5.1, -5.9], ['律师', 'job', 4.1, 5.8, -4.3],
+      // 王室组：性别方向 G = (2.4, -0.2, 1.4)，女王刻意偏离精确落点一点点（所以是 ≈）
+      ['国王', 'royal', -2.4, 0.8, -7.4], ['女王', 'royal', 0.25, 0.95, -6.15],
+      ['男人', 'royal', -4.0, -0.6, -8.2], ['女人', 'royal', -1.6, -0.8, -6.8],
+      ['王子', 'royal', -3.2, 2.2, -8.8], ['公主', 'royal', -0.8, 2.0, -7.4],
+      // 国家-首都组：首都方向 C = (1.6, 2.6, -0.2)
+      ['中国', 'capital', 7.6, 0.6, -4.2], ['北京', 'capital', 9.2, 3.2, -4.4],
+      ['日本', 'capital', 6.2, -0.6, -5.8], ['东京', 'capital', 7.8, 2.0, -6.0],
+      ['法国', 'capital', 7.0, -1.6, -2.6], ['巴黎', 'capital', 8.6, 1.0, -2.8],
+    ];
+
+    /* ---- 贴图工厂 ---- */
+    function dotTexture() {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.4, 'rgba(255,255,255,0.85)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    }
+    function labelTexture(text, color) {
+      const fs = 46, pad = 14;
+      const probe = document.createElement('canvas').getContext('2d');
+      const font = '600 ' + fs + 'px ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
+      probe.font = font;
+      const w = Math.ceil(probe.measureText(text).width) + pad * 2;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = fs + pad * 2;
+      const g = c.getContext('2d');
+      g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = color;
+      g.fillText(text, c.width / 2, c.height / 2);
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    }
+
+    /* ---- 搭建星空 ---- */
+    const dotTex = dotTexture();
+    const items = [];
+    const byName = {};
+    WORDS.forEach(([t, g, x, y, z]) => {
+      const dot = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: dotTex, color: cssColor(GROUP_COLOR[g]), transparent: true, depthWrite: false,
+      }));
+      dot.position.set(x, y, z);
+      dot.scale.setScalar(0.85);
+      const lbl = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: labelTexture(t, css('--fg-0')), transparent: true, depthWrite: false,
+      }));
+      lbl.position.set(x, y + 0.8, z);
+      const H = 1.05;
+      lbl.scale.set(lbl.material.map.image.width / lbl.material.map.image.height * H, H, 1);
+      scene.add(dot, lbl);
+      const item = { t, g, dot, lbl, pos: new THREE.Vector3(x, y, z) };
+      items.push(item); byName[t] = item;
+    });
+
+    // 背景小星点，增加纵深感
+    const starN = 140, starPos = new Float32Array(starN * 3);
+    for (let i = 0; i < starN; i++) {
+      const r = 15 + Math.random() * 16, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+      starPos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+      starPos[i * 3 + 1] = r * Math.cos(ph);
+      starPos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: cssColor('--fg-2'), size: 0.09, transparent: true, opacity: 0.5 });
+    scene.add(new THREE.Points(starGeo, starMat));
+
+    /* ---- 箭头与高亮 ---- */
+    const arrowGroup = new THREE.Group();
+    scene.add(arrowGroup);
+    function addArrow(fromName, toName, colorVar) {
+      const a = byName[fromName].pos, b = byName[toName].pos;
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      const ar = new THREE.ArrowHelper(dir.normalize(), a, len, cssColor(colorVar), 0.8, 0.42);
+      arrowGroup.add(ar);
+      return ar;
+    }
+    function clearArrows() {
+      while (arrowGroup.children.length) arrowGroup.remove(arrowGroup.children[0]);
+    }
+
+    let marker = null;
+    function clearMarker() {
+      if (marker) { scene.remove(marker); marker = null; }
+      byName['女王'].dot.scale.setScalar(0.85);
+    }
+
+    function focus(fn) {
+      items.forEach((it) => {
+        const on = fn(it);
+        it.dot.material.opacity = on ? 1 : 0.10;
+        it.lbl.material.opacity = on ? 0.95 : 0.07;
+      });
+    }
+
+    /* ---- 视角文案与切换 ---- */
+    const VIEWS = {
+      all: { title: '整片星空 · 36 个词', desc: '意思相近的词在空间里自动抱团，群落之间隔着大片"真空"。转一转就能体会：方位本身没有意义，有意义的只是相对距离。', match: () => true },
+      animal: { title: '动物群落', desc: '猫、狗、老虎、熊猫……它们总出现在相似的句子里（喂、养、毛茸茸、动物园），训练后被推进了同一片角落。', match: (it) => it.g === 'animal' },
+      food: { title: '食物群落', desc: '米饭和面条贴得最近，披萨、汉堡稍微偏向一侧 —— 真实模型里甚至能看出"中餐 / 西餐"的次级结构。', match: (it) => it.g === 'food' },
+      emotion: { title: '情感群落', desc: '注意：「开心」和「悲伤」意思相反，距离却不远 —— 因为它们的语境几乎一样（"我感到 ____"）。embedding 度量的是语境相似，反义词常常是近邻。', match: (it) => it.g === 'emotion' },
+      job: { title: '职业群落', desc: '医生、教师、律师……共享"上班、执照、职责"这类语境。真实空间里它们还会各自靠近自己的工作场所词：医生挨着医院，教师挨着学校。', match: (it) => it.g === 'job' },
+      relation: { title: '关系向量 · 两组平行箭头', desc: '红色箭头都是"性别方向"（国王→女王、男人→女人、王子→公主），蓝色箭头都是"首都方向"（中国→北京、日本→东京、法国→巴黎）。关系 = 可以搬运的方向。', match: (it) => it.g === 'royal' || it.g === 'capital' },
+    };
+
+    const chips = document.querySelectorAll('#cosmos-chips .chip');
+    const titleEl = document.getElementById('cosmos-title');
+    const descEl = document.getElementById('cosmos-desc');
+    let analogy = null;
+    let currentKey = 'all';
+
+    function select(key) {
+      currentKey = key;
+      analogy = null;
+      clearArrows(); clearMarker();
+      chips.forEach((c) => c.classList.toggle('active', c.dataset.key === key));
+      const v = VIEWS[key];
+      focus(v.match);
+      titleEl.textContent = v.title;
+      descEl.textContent = v.desc;
+      if (key === 'relation') {
+        addArrow('国王', '女王', '--terracotta');
+        addArrow('男人', '女人', '--terracotta');
+        addArrow('王子', '公主', '--terracotta');
+        addArrow('中国', '北京', '--sky');
+        addArrow('日本', '东京', '--sky');
+        addArrow('法国', '巴黎', '--sky');
+      }
+    }
+    chips.forEach((c) => c.addEventListener('click', () => select(c.dataset.key)));
+
+    /* ---- 类比动画：国王 − 男人 + 女人 ---- */
+    function startAnalogy() {
+      clearArrows(); clearMarker();
+      chips.forEach((c) => c.classList.remove('active'));
+      const cast = ['国王', '男人', '女人', '女王'];
+      focus((it) => cast.includes(it.t));
+      titleEl.textContent = '国王 − 男人 + 女人 ≈ ？';
+      descEl.textContent = '红色箭头 = 女人 − 男人，正是"性别"这层关系。把同一支箭头平移到「国王」头上，落点就在「女王」附近 —— 关系像积木一样可以搬运、相加。';
+
+      const A = byName['男人'].pos, B = byName['女人'].pos, K = byName['国王'].pos;
+      const G = new THREE.Vector3().subVectors(B, A);
+      const len = G.length();
+      const nd = G.clone().normalize();
+      const target = K.clone().add(G);
+      const red = cssColor('--terracotta');
+
+      const a1 = new THREE.ArrowHelper(nd, A, reduced ? len : 0.05, red, 0.8, 0.42);
+      const a2 = new THREE.ArrowHelper(nd, A.clone(), len, red, 0.8, 0.42);
+      a2.visible = reduced;
+      if (reduced) a2.position.copy(K);
+      arrowGroup.add(a1, a2);
+
+      marker = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: dotTex, color: red, transparent: true, opacity: 0.85, depthWrite: false,
+      }));
+      marker.position.copy(target);
+      marker.scale.setScalar(1.5);
+      marker.visible = reduced;
+      scene.add(marker);
+
+      if (reduced) {
+        byName['女王'].dot.scale.setScalar(1.35);   // 降级：直接显示完成态
+      } else {
+        analogy = { t0: performance.now(), a1, a2, len, A, K };
+      }
+    }
+    document.getElementById('btn-analogy').addEventListener('click', startAnalogy);
+
+    function tickAnalogy(now) {
+      if (!analogy) return;
+      const ease = (x) => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
+      const t = now - analogy.t0;
+      if (t < 900) {                                   // 第一步：画出 女人 − 男人
+        const l = Math.max(0.05, analogy.len * ease(t / 900));
+        analogy.a1.setLength(l, Math.min(0.8, l * 0.5), Math.min(0.42, l * 0.3));
+      } else if (t < 1200) {
+        analogy.a1.setLength(analogy.len, 0.8, 0.42);
+      } else if (t < 2400) {                           // 第二步：把箭头搬到国王头上
+        analogy.a2.visible = true;
+        analogy.a2.position.lerpVectors(analogy.A, analogy.K, ease((t - 1200) / 1200));
+      } else {                                         // 第三步：落点高亮，女王在附近
+        analogy.a2.position.copy(analogy.K);
+        if (marker) marker.visible = true;
+        byName['女王'].dot.scale.setScalar(1.35);
+        analogy = null;
+      }
+    }
+
+    /* ---- 深浅色切换时重建颜色 ---- */
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const fg = css('--fg-0');
+      items.forEach((it) => {
+        it.dot.material.color.copy(cssColor(GROUP_COLOR[it.g]));
+        it.lbl.material.map.dispose();
+        it.lbl.material.map = labelTexture(it.t, fg);
+        it.lbl.material.needsUpdate = true;
+      });
+      starMat.color.copy(cssColor('--fg-2'));
+      select(currentKey);
+    });
+
+    /* ---- 自适应尺寸 ---- */
+    const ro = new ResizeObserver(() => {
+      const w = host.clientWidth || 600, h = host.clientHeight || 450;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    });
+    ro.observe(host);
+
+    /* ---- 渲染循环 ---- */
+    renderer.setAnimationLoop((now) => {
+      controls.update();
+      tickAnalogy(now);
+      if (marker && marker.visible && !reduced) {
+        marker.scale.setScalar(1.35 + 0.4 * (0.5 + 0.5 * Math.sin(now * 0.005)));
+      }
+      renderer.render(scene, camera);
+    });
+
+    select('all');
+  } catch (e) {
+    showFallback('当前浏览器可能不支持 WebGL，无法渲染 3D 场景。');
+    console.error(e);
+  }
+})();
+</script>
+
+<script>
+/* ---------- 训练步进演示：看坐标被填空题一步步推出来 ---------- */
+(function () {
+  var svg = document.getElementById('train-svg');
+  if (!svg) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* [词, 颜色变量, 起点x, 起点y, 终点x, 终点y, 成团轮次] —— 起点为固定的"伪随机"散布 */
+  var WORDS = [
+    ['猫',   '--sage',       330, 236,  76,  64, 1],
+    ['狗',   '--sage',        96, 272, 120,  86, 1],
+    ['兔子', '--sage',       388,  64,  70, 110, 1],
+    ['老虎', '--sage',       206, 124, 126, 130, 4],
+    ['米饭', '--amber',       58,  72, 330,  62, 2],
+    ['面条', '--amber',      244, 286, 372,  86, 2],
+    ['饺子', '--amber',      142, 186, 324, 106, 2],
+    ['披萨', '--amber',      404, 196, 368, 128, 5],
+    ['开心', '--terracotta', 302, 148, 196, 252, 3],
+    ['难过', '--terracotta',  46, 206, 248, 272, 3]
+  ];
+  var STEPS = [
+    ['第 0 轮 · 出生即混乱', '训练开始前，每个词领到的是纯随机坐标：「猫」挨着「面条」，「开心」漂在「老虎」旁边。模型此刻对语言一无所知 —— 点「训练一步」，开始做填空题。', 100],
+    ['第 1 轮 ·「____ 在沙发上打盹」', '这类句子的空格里，猫、狗、兔子都常是标准答案。每做一题，就把"可以互换"的词往彼此身边推一小步 —— 注意三只小动物开始变色、靠拢。', 78],
+    ['第 2 轮 ·「来一碗热腾腾的 ____」', '米饭、面条、饺子总和"碗、热、吃"作伴，被推进了同一片区域。没有谁定义过"食物"这个类别 —— 类别是统计出来的。', 61],
+    ['第 3 轮 ·「考完试我特别 ____」', '开心和难过都能填进"我特别 ____"，语境几乎一样，于是被推到一起 —— 这正是反义词常常是近邻的原因：embedding 度量的是语境相似，不是褒贬。', 45],
+    ['第 4 轮 ·「动物园新来了一只 ____」', '老虎归队。它前几轮"掉队"，只因出现频率低、轮到它的题少 —— 罕见词的坐标天生学得更慢、更不准。', 30],
+    ['第 5 轮 ·「____ 趁热吃，配可乐绝了」', '披萨滑进食物区。三个群落边界已清晰可见 —— 而我们做的只是反复填空、错了就推一把。', 16],
+    ['第 6 轮 · 亿万道题做完', '群落自己浮现了 —— 这就是"坐标不是人标的"的完整含义：聚类是统计的副产品。真实训练是几十亿句话、几百维坐标、万亿次做题，但原理与你刚才看到的一模一样。', 7]
+  ];
+
+  var nodes = WORDS.map(function (w) {
+    var g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'tw');
+    var c = document.createElementNS(NS, 'circle');
+    c.setAttribute('r', '7');
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('y', '-12');
+    t.setAttribute('text-anchor', 'middle');
+    t.textContent = w[0];
+    g.appendChild(c); g.appendChild(t);
+    svg.appendChild(g);
+    return { w: w, g: g, c: c };
+  });
+
+  var titleEl = document.getElementById('train-title');
+  var descEl = document.getElementById('train-desc');
+  var errEl = document.getElementById('train-err');
+  var errvEl = document.getElementById('train-errv');
+
+  /* 该词在第 step 轮的"归队进度"：全程缓慢漂移，到自己的主场轮猛推一把 */
+  function progress(feat, step) {
+    if (step <= 0) return 0;
+    if (step >= 6) return 1;
+    return Math.min(1, 0.10 * step + (step >= feat ? 0.6 : 0));
+  }
+
+  var step = 0;
+  function render() {
+    nodes.forEach(function (n) {
+      var w = n.w, p = progress(w[6], step);
+      var x = w[2] + (w[4] - w[2]) * p;
+      var y = w[3] + (w[5] - w[3]) * p;
+      n.g.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      n.c.style.fill = step >= w[6] ? 'var(' + w[1] + ')' : 'var(--fg-2)';
+    });
+    var s = STEPS[step];
+    titleEl.textContent = s[0];
+    descEl.textContent = s[1];
+    errEl.style.width = s[2] + '%';
+    errvEl.textContent = s[2] + '%';
+  }
+
+  document.getElementById('train-step').addEventListener('click', function () {
+    if (step < 6) { step++; render(); }
+  });
+  document.getElementById('train-all').addEventListener('click', function () {
+    step = 6; render();
+  });
+  document.getElementById('train-reset').addEventListener('click', function () {
+    step = 0; render();
+  });
+
+  if (reduced) {            /* 降级：直接展示训练完成态，按钮仍可瞬时切换 */
+    step = 6;
+    render();
+    descEl.textContent += '（检测到"减少动态"偏好：已直接显示完成态，按钮仍可用，切换为瞬时完成。）';
+  } else {
+    render();
+  }
+})();
+
+/* ---------- 「苹果」语境漂移：静态词向量 vs 大模型的"活"坐标 ---------- */
+(function () {
+  var apple = document.getElementById('apple-g');
+  if (!apple) return;
+  var POS = { none: [218, 236], fruit: [128, 122], tech: [304, 124] };
+  var TXT = {
+    none: ['静态词向量的困境', 'word2vec 给每个词只发一张"身份证"。「苹果」只能卡在水果区和科技区中间的尴尬地带 —— 哪边都沾点，哪边都不像。一词多义，被压扁成了平均值。'],
+    fruit: ['上下文把它拽进水果区', '在大模型内部，「苹果」先查表领到初始向量，随后被「甜」「两斤」这些邻居一层层修正 —— 整句读完，它已经漂进水果群落。这就是语境化向量："活"的坐标。'],
+    tech: ['同一个词，另一个灵魂', '换个句子，「发布」「手机」把同一个「苹果」拽向科技区。至于每个词究竟如何"参考"周围的词来更新自己 —— 那正是下一课注意力机制的全部剧情。']
+  };
+  var chips = document.querySelectorAll('#ctx-chips .chip');
+  var titleEl = document.getElementById('ctx-title');
+  var descEl = document.getElementById('ctx-desc');
+
+  function select(key) {
+    chips.forEach(function (c) { c.classList.toggle('active', c.dataset.key === key); });
+    apple.style.transform = 'translate(' + POS[key][0] + 'px,' + POS[key][1] + 'px)';
+    titleEl.textContent = TXT[key][0];
+    descEl.textContent = TXT[key][1];
+  }
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { select(c.dataset.key); });
+  });
+  select('none');
+})();
+</script>
+
+</body>
+</html>

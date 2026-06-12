@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拓智 · 为中文学习者设计的 AI 入门课</title>
+<meta name="description" content="零基础 AI 课程：用可视化与交互演示讲透 AI 核心原理，6 个阶段 30 课，从神经网络直觉到亲手构建 AI 应用，专为中文学习者设计。">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+/* ---------- 首页专属 ---------- */
+.hero { padding: 88px 0 64px; text-align: center; }
+.hero .eyebrow { justify-content: center; margin-bottom: 18px; }
+.hero h1 { max-width: 720px; margin: 0 auto; }
+.hero .subhead { max-width: 580px; margin: 18px auto 0; }
+.hero-cta { display: flex; gap: 12px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+
+/* 会思考的神经网络 */
+.hero-viz { max-width: 760px; margin: 44px auto 0; overflow: hidden; }
+.hero-viz canvas { display: block; width: 100%; height: 250px; }
+.hero-viz .viz-caption { font-size: 13px; color: var(--fg-2); padding: 0 16px 14px; }
+
+.stats {
+  display: flex; justify-content: center; gap: 0; margin-top: 28px;
+  border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  background: var(--bg-card); box-shadow: var(--shadow-card);
+  max-width: 640px; margin-left: auto; margin-right: auto;
+  overflow: hidden;
+}
+.stat { flex: 1; padding: 18px 8px; text-align: center; }
+.stat + .stat { border-left: 1px solid var(--hairline); }
+.stat .num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { font-size: 13px; color: var(--fg-2); margin-top: 2px; }
+
+.section { padding: 56px 0 0; }
+.section-head { margin-bottom: 28px; }
+.section-head .subhead { margin-top: 8px; }
+
+/* 理念三卡 */
+.idea-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.idea-card { padding: 24px; }
+.idea-card .icon {
+  width: 40px; height: 40px; border-radius: var(--r-md);
+  background: var(--bg-inset); border: 1px solid var(--hairline);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; margin-bottom: 14px;
+}
+.idea-card h3 { margin-bottom: 6px; }
+.idea-card p { font-size: 14px; color: var(--fg-1); }
+
+/* 阶段 */
+.stage { margin-bottom: 36px; }
+.stage-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.stage-num {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--on-accent); background: var(--accent);
+  padding: 3px 12px; border-radius: var(--r-pill);
+}
+.stage-head h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.stage-head .goal { font-size: 14px; color: var(--fg-1); flex-basis: 100%; }
+
+.lesson {
+  display: grid; grid-template-columns: 44px 1fr auto; gap: 4px 14px;
+  align-items: baseline; padding: 16px 22px;
+  color: inherit; text-decoration: none;
+  transition: background 0.15s ease;
+}
+a.lesson:hover { background: var(--glass); }
+.lesson-no { font-size: 13px; font-weight: 600; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.lesson-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lesson-desc { grid-column: 2; font-size: 14px; color: var(--fg-1); }
+.lesson-meta { display: flex; align-items: center; gap: 10px; justify-self: end; }
+.lesson-meta .footnote { white-space: nowrap; }
+
+/* 用法说明 */
+.usage-flow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+.usage-step {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg-card); border: 1px solid var(--hairline);
+  border-radius: var(--r-pill); padding: 8px 18px;
+  font-size: 14px; font-weight: 500;
+}
+.usage-step b { font-weight: 700; }
+.usage-arrow { color: var(--fg-2); font-size: 14px; }
+
+@media (max-width: 760px) {
+  .idea-grid { grid-template-columns: 1fr; }
+  .lesson { grid-template-columns: 36px 1fr; }
+  .lesson-meta { grid-column: 2; justify-self: start; margin-top: 4px; }
+  .stats { flex-wrap: wrap; }
+  .stat { flex-basis: 50%; }
+  .stat:nth-child(3) { border-left: none; border-top: 1px solid var(--hairline); }
+  .stat:nth-child(4) { border-top: 1px solid var(--hairline); }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="#idea">设计理念</a>
+      <a href="#path">学习路线</a>
+      <a href="#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container">
+  <span class="eyebrow">AI for Chinese Learners · 零基础友好</span>
+  <h1>为中文学习者设计的<br>AI 入门课</h1>
+  <p class="subhead">不堆公式，不灌术语。用可视化和交互演示，把 AI 的核心原理装进你的直觉 —— 从"神经网络是什么"到亲手搭出 AI 应用，每课 20 分钟。</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#path">查看学习路线</a>
+    <a class="btn btn-glass" href="lessons/01-ai-ml-dl.html">从第 1 课开始学 →</a>
+  </div>
+  <div class="hero-viz card">
+    <canvas id="nn-canvas" aria-label="一个正在运行的神经网络动画：信号从输入层逐层传向输出层"></canvas>
+    <div class="viz-caption">↑ 一个正在"思考"的神经网络 —— 信号逐层向前传播。学完这门课，你会知道它的每一个零件叫什么、为什么这样设计。</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="num">6</div><div class="lbl">学习阶段</div></div>
+    <div class="stat"><div class="num">30</div><div class="lbl">核心课程</div></div>
+    <div class="stat"><div class="num">20<span style="font-size:15px">min</span></div><div class="lbl">单课时长</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">基础要求</div></div>
+  </div>
+</header>
+
+<section class="section container" id="idea">
+  <div class="section-head">
+    <span class="eyebrow">Why This Course</span>
+    <h2>这套课为什么不一样</h2>
+    <p class="subhead">市面上的 AI 课要么是数学推导，要么是新闻名词轰炸。这套课只做一件事：让你真正"看见"AI 是怎么运转的。</p>
+  </div>
+  <div class="idea-grid">
+    <div class="card idea-card">
+      <div class="icon">🧠</div>
+      <h3>直觉优先</h3>
+      <p>不从公式出发，从画面出发。每个概念都先给你一个心智图像 —— 训练是"摸索下山"，注意力是"划重点"，扩散模型是"从噪点里擦出一幅画"。先有直觉，术语和数学才有地方安放。</p>
+    </div>
+    <div class="card idea-card">
+      <div class="icon">🎛️</div>
+      <h3>可视可玩</h3>
+      <p>关键概念配 2D / 3D 交互演示：拖动神经元的权重、拧动 temperature 旋钮、在三维星空里漫游词向量。<span class="pill pill-sky">交互演示</span> 标签的课程都能亲手操作 —— 玩过的，才真正属于你。</p>
+    </div>
+    <div class="card idea-card">
+      <div class="icon">🛠️</div>
+      <h3>学完能上手</h3>
+      <p>最后一个阶段写真代码：调用 LLM API、在自己电脑上跑开源模型、搭一个 RAG 知识库。从"看懂 AI 新闻"到"做出 AI 应用"，这门课负责送你走完全程。</p>
+    </div>
+  </div>
+</section>
+
+<section class="section container" id="path">
+  <div class="section-head">
+    <span class="eyebrow">Learning Path</span>
+    <h2>学习路线 · 6 阶段 30 课</h2>
+    <p class="subhead">自下而上搭建：先建直觉，再懂原理，看清大模型全貌，最后亲手构建。建议按顺序学习。</p>
+  </div>
+
+  <!-- 第一阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第一阶段</span>
+      <h3>直觉篇 · AI 到底是什么</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：不写一行代码、不碰一个公式，建立对 AI 的正确直觉 —— 知道它是什么、不是什么、靠什么变聪明。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/01-ai-ml-dl.html">
+        <span class="lesson-no">01</span>
+        <span class="lesson-title">AI、机器学习、深度学习：三个圈的关系<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">入门</span><span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">人工智能 ⊃ 机器学习 ⊃ 深度学习。分清这三个套娃般的圈，是看懂一切 AI 新闻的第一步。</span>
+      </a>
+      <a class="lesson" href="lessons/02-how-machines-learn.html">
+        <span class="lesson-no">02</span>
+        <span class="lesson-title">机器是怎么"学习"的：从写规则到喂数据<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">入门</span><span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">传统编程是"人写规则"，机器学习是"机器从数据里自己找规则"—— 这一个转变，造就了整个 AI 时代。</span>
+      </a>
+      <a class="lesson" href="lessons/03-a-single-neuron.html">
+        <span class="lesson-no">03</span>
+        <span class="lesson-title">一个神经元的诞生：权重、偏置与激活<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">入门</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">神经网络的最小零件，其实只是一道"加权打分题"。亲手拖动权重滑块，看一个神经元如何做判断。</span>
+      </a>
+      <a class="lesson" href="lessons/04-gradient-descent.html">
+        <span class="lesson-no">04</span>
+        <span class="lesson-title">训练就是下山：损失函数与梯度下降<span class="pill pill-terracotta">核心难点</span><span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">把"猜错的程度"变成一座山，训练就是闭着眼摸索下山。在 3D 地形图上看懂 AI 如何一步步变聪明。</span>
+      </a>
+      <a class="lesson" href="lessons/05-data-and-overfitting.html">
+        <span class="lesson-no">05</span>
+        <span class="lesson-title">数据为王：训练集、测试集与过拟合<span class="pill pill-amber">易混淆</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">为什么 AI 会"背答案"而不是"真学会"？过拟合是所有炼丹师的噩梦，也是理解 AI 局限的钥匙。</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 第二阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第二阶段</span>
+      <h3>原理篇 · 深度学习四大基石</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：看懂支撑现代 AI 的几个关键机制 —— 多层网络、卷积、向量、注意力，为理解大模型打好地基。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/06-deep-networks-backprop.html">
+        <span class="lesson-no">06</span>
+        <span class="lesson-title">层层抽象：多层网络与反向传播<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">一层神经元只会画直线，层数叠多了就能认出一只猫。反向传播：把错误一层层"追责"回去的艺术。</span>
+      </a>
+      <a class="lesson" href="lessons/07-cnn-how-computers-see.html">
+        <span class="lesson-no">07</span>
+        <span class="lesson-title">计算机如何"看"：卷积神经网络 CNN<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">一个 3×3 的小窗口在图片上滑动，就能找出边缘、纹理直至人脸。亲眼看卷积核扫描一张图。</span>
+      </a>
+      <a class="lesson" href="lessons/08-embeddings-vector-space.html">
+        <span class="lesson-no">08</span>
+        <span class="lesson-title">词变成数字：Embedding 与向量空间<span class="pill pill-terracotta">核心难点</span><span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">国王 − 男人 + 女人 ≈ 女王。在 3D 星空里漫游词向量空间，理解 AI 眼中的"语义"长什么样。</span>
+      </a>
+      <a class="lesson" href="lessons/09-attention.html">
+        <span class="lesson-no">09</span>
+        <span class="lesson-title">注意力机制：AI 学会"划重点"<span class="pill pill-terracotta">核心难点</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">理解 "bank" 时该看 "river" 还是 "money"？Attention 让每个词学会环顾四周 —— 大模型的心脏。</span>
+      </a>
+      <a class="lesson" href="lessons/10-transformer.html">
+        <span class="lesson-no">10</span>
+        <span class="lesson-title">Transformer：改变一切的架构<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">2017 年一篇论文《Attention Is All You Need》改写了 AI 史。逐层拆解这条"词语加工流水线"。</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 第三阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第三阶段</span>
+      <h3>大模型篇 · LLM 是怎么炼成的</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：完整看懂一个大语言模型的诞生全程 —— 从生数据到预训练，再到被调教成你熟悉的 ChatGPT。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/11-tokens.html">
+        <span class="lesson-no">11</span>
+        <span class="lesson-title">Token：大模型眼中的世界<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">大模型不认识"字"，只认识 token。输入一句话，看它被切成什么样 —— 顺便搞懂为什么按 token 计费。</span>
+      </a>
+      <a class="lesson" href="lessons/12-pretraining.html">
+        <span class="lesson-no">12</span>
+        <span class="lesson-title">预训练：用整个互联网玩文字接龙<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">"预测下一个词"这个朴素游戏，重复上万亿次后发生了什么？大模型九成的能力来自这一步。</span>
+      </a>
+      <a class="lesson" href="lessons/13-sft-rlhf.html">
+        <span class="lesson-no">13</span>
+        <span class="lesson-title">从 GPT 到 ChatGPT：SFT 与 RLHF<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">预训练给了它知识，对齐给了它"人样"。监督微调 + 人类反馈强化学习，把接龙机器调教成助手。</span>
+      </a>
+      <a class="lesson" href="lessons/14-temperature-sampling.html">
+        <span class="lesson-no">14</span>
+        <span class="lesson-title">温度与采样：AI 为什么每次回答不一样<span class="pill pill-amber">易混淆</span><span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">temperature 调到 0 和调到 2，分别会发生什么？亲手拧动旋钮，理解"严谨"与"创造"之间的权衡。</span>
+      </a>
+      <a class="lesson" href="lessons/15-scaling-laws.html">
+        <span class="lesson-no">15</span>
+        <span class="lesson-title">Scaling Laws 与涌现：大力出奇迹<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">参数 ×10、数据 ×10、算力 ×10，能力曲线如何变化？以及那些模型"突然学会"新本领的神秘瞬间。</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 第四阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第四阶段</span>
+      <h3>应用篇 · 把大模型用起来</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：掌握 LLM 应用层的完整技术栈 —— 从写好提示词，到给 AI 外挂知识库和工具，再到搭出智能体。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/16-prompt-engineering.html">
+        <span class="lesson-no">16</span>
+        <span class="lesson-title">提示工程：和 AI 对话的艺术<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">角色设定、少样本示例、思维链……提示工程不是玄学话术，而是一套有原理可循的工程方法。</span>
+      </a>
+      <a class="lesson" href="lessons/17-context-window.html">
+        <span class="lesson-no">17</span>
+        <span class="lesson-title">上下文窗口：AI 的工作记忆<span class="pill pill-amber">易混淆</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">为什么聊久了 AI 会"失忆"？上下文是大模型唯一的记忆，理解它的边界是用好 AI 的前提。</span>
+      </a>
+      <a class="lesson" href="lessons/18-rag.html">
+        <span class="lesson-no">18</span>
+        <span class="lesson-title">RAG：给 AI 外挂知识库<span class="pill pill-terracotta">核心难点</span><span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">大模型不知道你公司的文档怎么办？切块 → 向量化 → 检索 → 注入上下文，动画演示完整流程。</span>
+      </a>
+      <a class="lesson" href="lessons/19-function-calling.html">
+        <span class="lesson-no">19</span>
+        <span class="lesson-title">Function Calling：AI 长出双手<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">让大模型学会查天气、订机票、跑代码 —— 工具调用是 AI 从"会说"到"会做"的关键跨越。</span>
+      </a>
+      <a class="lesson" href="lessons/20-agents.html">
+        <span class="lesson-no">20</span>
+        <span class="lesson-title">Agent 智能体：会自己干活的 AI<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">感知 → 规划 → 行动 → 反思。当大模型装上循环和工具，它开始自主完成多步任务。</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 第五阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第五阶段</span>
+      <h3>前沿篇 · 多模态与推理</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：跟上 AI 的最前沿 —— 图像生成、多模态、推理模型与工程生态，看懂今天新闻里的每一个热词。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/21-diffusion-models.html">
+        <span class="lesson-no">21</span>
+        <span class="lesson-title">文生图：扩散模型的去噪魔法<span class="pill pill-sky">交互演示</span><span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">从一张纯噪点开始，一步步"擦"出一幅画。Stable Diffusion 与 Midjourney 背后的反直觉原理。</span>
+      </a>
+      <a class="lesson" href="lessons/22-multimodal.html">
+        <span class="lesson-no">22</span>
+        <span class="lesson-title">多模态：AI 同时看懂图文音<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">图片也能变成 token？看视觉编码器如何与语言模型"接驳"，让 AI 看图说话、听声辨意。</span>
+      </a>
+      <a class="lesson" href="lessons/23-reasoning-models.html">
+        <span class="lesson-no">23</span>
+        <span class="lesson-title">推理模型：思维链与慢思考<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">从 o1 到 DeepSeek-R1：让模型先"打草稿"再回答 —— 用测试时算力换智力的新范式。</span>
+      </a>
+      <a class="lesson" href="lessons/24-mcp-ecosystem.html">
+        <span class="lesson-no">24</span>
+        <span class="lesson-title">MCP 与 AI 工程生态<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">Model Context Protocol：AI 应用的"USB 接口"。一张图看懂大模型周边的工程生态全景。</span>
+      </a>
+      <a class="lesson" href="lessons/25-open-vs-closed.html">
+        <span class="lesson-no">25</span>
+        <span class="lesson-title">开源与闭源：大模型版图<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">入门</span><span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">GPT、Claude、Gemini、Llama、Qwen、DeepSeek……一张地图认清各家路线，学会按需选型。</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 第六阶段 -->
+  <div class="stage">
+    <div class="stage-head">
+      <span class="stage-num">第六阶段</span>
+      <h3>实战篇 · 亲手构建 AI 应用</h3>
+      <span class="pill pill-ink">5 课</span>
+      <span class="goal">目标：写真正的代码，把前 25 课的概念变成能跑起来的应用 —— 这是从学习者到构建者的最后一跃。</span>
+    </div>
+    <div class="card row-list">
+      <a class="lesson" href="lessons/26-first-api-call.html">
+        <span class="lesson-no">26</span>
+        <span class="lesson-title">第一次调用 API：30 行代码的聊天机器人<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">申请 key、发出第一个请求、读懂流式输出 —— 你和"AI 应用开发者"之间，只隔着 30 行代码。</span>
+      </a>
+      <a class="lesson" href="lessons/27-local-llms.html">
+        <span class="lesson-no">27</span>
+        <span class="lesson-title">本地跑大模型：Ollama 与量化<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">基础</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">不联网、不花钱，在自己电脑上跑开源大模型。顺便弄懂 7B、Q4 这些参数"黑话"是什么意思。</span>
+      </a>
+      <a class="lesson" href="lessons/28-build-rag.html">
+        <span class="lesson-no">28</span>
+        <span class="lesson-title">实战 RAG：搭建你的私人知识库<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span></span>
+        <span class="lesson-desc">把第 18 课的流程图变成真代码：读文档、建索引、做问答 —— 一个完整能用的 RAG 应用。</span>
+      </a>
+      <a class="lesson" href="lessons/29-evals-and-safety.html">
+        <span class="lesson-no">29</span>
+        <span class="lesson-title">评估与安全：AI 的体检与红线<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">进阶</span><span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">怎么知道模型变好了？幻觉、提示注入、越狱 —— 上线之前必须懂的评估方法与安全常识。</span>
+      </a>
+      <a class="lesson" href="lessons/30-learning-map.html">
+        <span class="lesson-no">30</span>
+        <span class="lesson-title">终点亦起点：AI 进阶学习地图<span class="pill pill-sage">已上线</span></span>
+        <span class="lesson-meta"><span class="footnote">入门</span><span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span></span>
+        <span class="lesson-desc">论文怎么读、社区在哪里、方向怎么选 —— 把这门课变成你 AI 之旅的第一级台阶，而非终点。</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section container" id="usage">
+  <div class="section-head">
+    <span class="eyebrow">How To Learn</span>
+    <h2>每一课怎么学</h2>
+    <p class="subhead">所有课程共用同一结构，20 分钟走完一个完整的学习闭环：</p>
+  </div>
+  <div class="usage-flow">
+    <span class="usage-step">💡 <b>核心概念</b>&nbsp;直觉化讲透</span>
+    <span class="usage-arrow">→</span>
+    <span class="usage-step">🎛️ <b>交互演示</b>&nbsp;亲手调参数</span>
+    <span class="usage-arrow">→</span>
+    <span class="usage-step">⚠️ <b>常见误区</b>&nbsp;概念纠偏</span>
+    <span class="usage-arrow">→</span>
+    <span class="usage-step">✍️ <b>小练习</b>&nbsp;即学即测</span>
+  </div>
+  <p class="footnote" style="margin-top: 22px;">建议节奏：每天 1 课，6 周完成；或每天 2 课，3 周速通。第 4、8、9、18 课是公认难关，多留一天。</p>
+</section>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 首页神经网络动画：信号逐层前向传播 ---------- */
+(function () {
+  const canvas = document.getElementById('nn-canvas');
+  const ctx = canvas.getContext('2d');
+  const LAYERS = [4, 6, 6, 3];
+  const PERIOD = 4200;            // 一次前向传播的周期 ms
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let colors = {}, nodes = [], edges = [], activeEdges = new Set(), cycle = -1;
+
+  function readColors() {
+    const s = getComputedStyle(document.documentElement);
+    colors = {
+      fg: s.getPropertyValue('--fg-0').trim(),
+      accent: s.getPropertyValue('--accent').trim(),
+      hairline: s.getPropertyValue('--hairline-strong').trim(),
+      card: s.getPropertyValue('--bg-lift').trim(),
+    };
+  }
+
+  function layout() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    nodes = []; edges = [];
+    LAYERS.forEach((count, li) => {
+      const x = w * (0.10 + 0.80 * li / (LAYERS.length - 1));
+      const layer = [];
+      for (let i = 0; i < count; i++) {
+        const y = h * ((i + 1) / (count + 1));
+        layer.push({ x, y, layer: li });
+      }
+      nodes.push(layer);
+    });
+    for (let li = 0; li < LAYERS.length - 1; li++) {
+      nodes[li].forEach((a, ai) => nodes[li + 1].forEach((b, bi) => {
+        edges.push({ a, b, gap: li, id: li + ':' + ai + ':' + bi });
+      }));
+    }
+  }
+
+  // 每个周期随机选一批"导通"的连接，让动画更像真实的稀疏激活
+  function pickActive() {
+    activeEdges = new Set(edges.filter(() => Math.random() < 0.45).map(e => e.id));
+  }
+
+  function draw(wave) {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+    // 连线
+    edges.forEach(e => {
+      ctx.strokeStyle = colors.hairline;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke();
+    });
+    // 信号脉冲
+    edges.forEach(e => {
+      if (!activeEdges.has(e.id)) return;
+      const p = wave - e.gap;
+      if (p <= 0 || p >= 1) return;
+      const x = e.a.x + (e.b.x - e.a.x) * p;
+      const y = e.a.y + (e.b.y - e.a.y) * p;
+      ctx.globalAlpha = Math.sin(p * Math.PI);
+      ctx.fillStyle = colors.accent;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+    // 节点：信号经过时点亮
+    nodes.flat().forEach(n => {
+      const d = wave - n.layer;
+      const lit = Math.exp(-(d * d) / 0.06);
+      const r = Math.max(4.5, Math.min(7, w / 110));
+      ctx.fillStyle = colors.card;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = colors.hairline; ctx.lineWidth = 1; ctx.stroke();
+      if (lit > 0.02) {
+        ctx.globalAlpha = lit;
+        ctx.fillStyle = colors.accent;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r - 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    });
+  }
+
+  function frame(t) {
+    const c = Math.floor(t / PERIOD);
+    if (c !== cycle) { cycle = c; pickActive(); }
+    // wave 从 -0.3 走到 层数，留一点静默间隔
+    const wave = (t % PERIOD) / PERIOD * (LAYERS.length + 0.4) - 0.3;
+    draw(wave);
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    readColors(); layout(); pickActive();
+    if (reduceMotion.matches) { draw(1.5); return; }   // 静态帧，尊重减弱动效
+    requestAnimationFrame(frame);
+  }
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new ResizeObserver(() => { layout(); if (reduceMotion.matches) draw(1.5); }).observe(canvas);
+  init();
+})();
+</script>
+
+</body>
+</html>

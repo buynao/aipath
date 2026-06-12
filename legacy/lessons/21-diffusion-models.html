@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 21 课 · 文生图：扩散模型的去噪魔法 — 拓智</title>
+<meta name="description" content="扩散模型学的不是'怎么画画'，而是'怎么把一张被加噪的图恢复一点点'。交互演示从纯噪声一步步擦出一幅画，并讲清文字如何控制画面、潜空间为什么省钱。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属：去噪演示 ---------- */
+.mt-14 { margin-top: 14px; }
+
+.dn-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.dn-frame {
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
+  overflow: hidden; line-height: 0; background: var(--bg-inset);
+}
+#dn-canvas { width: min(100%, 300px); image-rendering: auto; }
+.dn-caption { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+.dn-play {
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  padding: 8px 18px; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+}
+.dn-play:hover { opacity: 0.88; }
+.dn-phase { font-size: 14px; color: var(--fg-1); margin-top: 10px; min-height: 44px; }
+
+/* CFG 小实验 */
+.demo-slim .demo-stage { min-height: 220px; }
+#cfg-canvas { width: min(100%, 190px); }
+
+/* 三步指路（文字控制画面） */
+.steps3 { display: flex; flex-direction: column; }
+.steps3 .step { display: flex; gap: 14px; padding: 13px 0; align-items: baseline; }
+.steps3 .step + .step { border-top: 1px dashed var(--hairline); }
+.steps3 .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--bg-inset); color: var(--fg-1); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; align-self: flex-start; }
+.steps3 .txt { font-size: 15px; }
+.steps3-card { padding: 8px 22px 10px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第五阶段 · 前沿篇</span> / <span>第 21 课</span>
+    </div>
+    <h1>文生图：扩散模型的去噪魔法</h1>
+    <p class="subhead">从一张纯噪点开始，一步步"擦"出一幅画。Stable Diffusion 与 Midjourney 背后的反直觉原理。</p>
+    <div class="meta">
+      <span class="pill pill-ink">进阶</span>
+      <span class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></span>
+      <span class="pill pill-sky">交互演示</span>
+      <span class="footnote">约 30 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>说出全课最反直觉的一点：扩散模型学的不是"怎么画画"，而是"怎么把一张被加噪的图恢复一点点"</div>
+      <div class="goal-item"><span class="tick">✓</span>分清训练和生成两个阶段：训练时给真图加噪、让网络猜噪声；生成时从纯噪声出发，几十步迭代去噪</div>
+      <div class="goal-item"><span class="tick">✓</span>明白文字怎么控制画面：描述先变成向量（第 8 课的老朋友），再在每一步去噪时"指路"，并知道 CFG 旋钮拧大会怎样</div>
+      <div class="goal-item"><span class="tick">✓</span>一句话解释潜空间为什么省钱，并认出 Midjourney / Stable Diffusion / DALL·E / Sora 同属一条技术路线</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：它学的不是画画，是"修复"</h2>
+    <p class="lead">看到 AI 画图，所有人的第一反应都是"它学会了绘画"。错。它学会的事小得多、也怪得多 —— 但正是这件小事，重复几十次之后就变成了魔法。</p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">直觉印象</span></div>
+        <div class="big">学"怎么画"<span class="gap"> · </span>从空白画布起笔</div>
+        <p class="note">想象 AI 像画家一样：先打底稿，再勾线、上色 —— 一笔一笔把画"画"出来。听起来合理，但完全不是这么回事。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">真实机制</span></div>
+        <div class="big">学"怎么<span class="hl">去掉一点噪声</span>"</div>
+        <p class="note">它只练了一件事：拿到一张被噪声污染的图，把噪声<b>恢复一点点</b>。把这一步重复几十次 —— 一幅画就从雪花屏里浮现出来。</p>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">"雕像本来就在石头里，我只是去掉多余的部分。"—— 传说中雕塑家的回答</div>
+      <div class="zh">扩散模型是数字时代的雕塑家：画"藏"在那张纯噪声里，去噪器一步一步凿掉多余的随机，直到画显形。它从不"添加"任何笔画 —— 它只做减法。</div>
+    </div>
+    <p class="lead mt-14">这件事拆开看，是两个完全分离的阶段：</p>
+    <div class="use-grid cols-2">
+      <div class="card use-card">
+        <div class="label">训练时 · 学会去噪</div>
+        <div class="en">加噪 → 猜<b>噪声</b></div>
+        <div class="zh">拿一张真实照片，随机加上<b>不同程度</b>的噪声 —— 轻则略糊，重则面目全非 —— 然后让神经网络猜："刚才加进去的是什么噪声？"猜对了，就等于会把这一步噪声减掉。在亿万张图上重复这道练习题，网络就成了去噪高手。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">生成时 · 反复用它</div>
+        <div class="en">纯噪声 → <b>几十步</b> → 画</div>
+        <div class="zh">生成新图时根本不需要任何"原图"：随机抽一张<b>纯噪声</b>，把去噪器连续调用几十步，每步只擦掉一点点。因为起点的噪声每次都不同，每次"浮现"出的画也都是世界上从未存在过的一张。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">为什么不一步到位？因为"从雪花直接猜出整幅画"太难了，网络猜不准；而"只把噪声减轻一点点"是个简单得多的小问题，每一步都能做得很准。几十个小而准的步骤串起来，胜过一个大而离谱的跳跃 —— 这和第 4 课梯度下降"小步快走"的智慧一脉相承。</p>
+  </section>
+
+  <section class="lsec">
+    <h2>🧭 文字怎么控制画面：每一步都有人指路</h2>
+    <p class="lead">光会去噪，只能从噪声里浮现出"随便一张图"。要让它画"一只戴贝雷帽的橘猫"，需要把你的文字变成每一步去噪的<b>导航</b>。</p>
+    <div class="card steps3-card">
+      <div class="steps3">
+        <div class="step"><span class="num">1</span><span class="txt"><b>文字变向量。</b>你的描述先经过一个<b>文本编码器</b>，变成一串数字向量 —— 还记得第 8 课吗？向量就是机器能比较、能计算的"语义坐标"，"橘猫"和"贝雷帽"的含义都被编了码。</span></div>
+        <div class="step"><span class="num">2</span><span class="txt"><b>每步去噪时指路。</b>这串向量作为<b>条件</b>，在每一步去噪时都喂给去噪器，把去噪的方向"掰"向符合描述的图像区域：同样是擦掉噪声，往"有橘猫的那类图"的方向擦。文字不画画，文字只导航。</span></div>
+        <div class="step"><span class="num">3</span><span class="txt"><b>CFG：听话程度的旋钮。</b>引导强度（CFG）决定模型多大程度服从你的文字：拧大更听话、更贴题，但拧过头容易颜色过饱和、画面发"塑料"—— 像把导航音量开到最大，司机紧张得开不好车。</span></div>
+      </div>
+    </div>
+    <div class="card demo demo-slim mt-14">
+      <div class="demo-head">
+        <span class="demo-title">🎚️ 小实验 · 拧一拧 CFG 旋钮（原理示意）</span>
+        <span class="demo-hint">左右拖动滑块</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <div class="dn-stage">
+            <div class="dn-frame"><canvas id="cfg-canvas" width="180" height="180" aria-label="CFG 引导强度示意：滑块越小画面越模糊发灰，越大颜色越过饱和"></canvas></div>
+            <div class="dn-caption">提示词：「远山落日」</div>
+          </div>
+        </div>
+        <div class="demo-side">
+          <div class="slider-row">
+            <label for="cfg-slider">引导强度</label>
+            <input type="range" id="cfg-slider" min="1" max="20" step="1" value="7">
+            <span class="val" id="cfg-val">7</span>
+          </div>
+          <h4 id="cfg-title"></h4>
+          <p id="cfg-desc"></p>
+          <p class="footnote">这里用清晰度/饱和度模拟"听话程度"的观感；真实 CFG 作用在每一步去噪的方向上。</p>
+        </div>
+      </div>
+    </div>
+    <p class="lead mt-14"><b>顺带一段：潜空间 —— 在草图上构思，最后再上色放大。</b>直接在像素上做扩散太贵：一张 1024×1024 的图有上百万个像素，几十步去噪每步都得全算一遍。Stable Diffusion 的聪明做法是先用一个压缩器把图压进小得多的<b>潜空间</b>（latent space），全部几十步扩散都在这张"小草图"上进行，最后一步才解码放大回像素 —— 就像画家先在小稿上构思布局，定稿后才上色放大，省下的算力是数量级的。它的论文名就叫"潜在扩散"（Latent Diffusion）。</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">同一条路线 · 三位名角</div>
+        <div class="en">Midjourney / <b>SD</b> / DALL·E</div>
+        <div class="zh">Midjourney 以审美调校出名、Stable Diffusion 开源开放、DALL·E 出自 OpenAI —— 产品气质各异，底层同属扩散这条技术路线。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">延伸 · 视频生成</div>
+        <div class="en">Sora 类 = <b>时间维</b>扩散</div>
+        <div class="zh">把"对一张图去噪"扩展成"对一串帧在时间维度上一起去噪"，画面动起来还前后连贯 —— 视频生成的主流思路。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">复习钩子</div>
+        <div class="en">呼应<b>第 8 课</b></div>
+        <div class="zh">文本编码器输出的向量，正是第 8 课讲过的嵌入。同一个零件，在文生图里换了个岗位：从"表示词义"变成"给去噪导航"。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 交互演示：从雪花里擦出一幅画</h2>
+    <p class="lead">下面是<b>原理示意</b>（不是真模型）：我们程序化地画一张目标图，再用"目标与噪声按比例混合、噪声幅度随步数衰减"模拟去噪观感。拖动滑块，或点「自动播放」看整个过程 —— 注意画面是怎么先定大色块、再浮现轮廓、最后才清晰的。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 50 步去噪（原理示意）</span>
+        <span class="demo-hint">拖动滑块 = 手动去噪</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <div class="dn-stage">
+            <div class="dn-frame"><canvas id="dn-canvas" width="256" height="256" aria-label="去噪过程演示画布：图像从纯噪声逐步变清晰"></canvas></div>
+            <div class="dn-caption" id="dn-caption">步数 0 / 50 · 噪声残留 100%</div>
+          </div>
+        </div>
+        <div class="demo-side">
+          <h4>选一张"藏在噪声里"的画</h4>
+          <div class="chips mt-14" id="dn-chips">
+            <button class="chip active" data-key="rings">暖阳同心圆</button>
+            <button class="chip" data-key="mountain">远山落日</button>
+            <button class="chip" data-key="checker">棋盘格</button>
+          </div>
+          <div class="slider-row mt-14">
+            <label for="dn-slider">去噪步数</label>
+            <input type="range" id="dn-slider" min="0" max="50" step="1" value="0">
+            <span class="val" id="dn-val">0</span>
+          </div>
+          <button class="dn-play" id="dn-play">▶ 自动播放</button>
+          <p class="dn-phase" id="dn-phase"></p>
+          <p class="footnote">真实扩散模型的每一步由神经网络预测噪声，这里只是模拟"逐步去噪"的视觉过程。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">AI 画图是在素材库里搜图、拼贴、缝合</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">画面从纯噪声逐步生成，不存在被"拼贴"的某张原图 —— 但训练数据里的风格确实会被学进权重</span></div>
+        </div>
+        <p class="why"><b>病因：</b>"它看过几十亿张图"听起来就像存了一个巨大素材库。实际上权重里存的是统计规律，不是图片本身 —— 生成时的唯一"原料"是那张随机噪声。但要诚实地说：艺术家的风格可以被模仿这件事是真的，训练数据是否侵权、风格该不该受保护，是 2025 年仍在诉讼和立法中拉锯的争议。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">AI 是"唰"地一下把图画出来的</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">标准流程是几十步迭代去噪，每步只擦掉一点点噪声</span></div>
+        </div>
+        <p class="why"><b>病因：</b>产品界面只给你看最终结果，中间几十步被藏起来了。另外确实有"秒出图"的产品 —— 那靠的是蒸馏、一致性模型等加速技术，把几十步压缩到几步甚至一步，但那是工程提速，原理仍然是去噪。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 用一句话向朋友解释"扩散模型到底学了什么"，并分别说出训练阶段和生成阶段各在做什么。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">一句话：<b>它学的不是画画，而是"把一张被加噪的图恢复一点点"。</b>训练时：拿真图随机加不同程度的噪声，让网络猜"加了什么噪声"；生成时：从一张纯噪声出发，反复调用这个去噪器几十步，画从雪花里浮现。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 朋友把 CFG 引导强度拉到最大，抱怨"图是贴题了，但颜色辣眼睛、画面像塑料"。请解释原因并给建议。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">CFG 决定模型多大程度<b>服从文字描述</b>：拧大更听话、更贴题，但拧过头会过度强化"符合描述"的方向，典型副作用就是颜色过饱和、画面僵硬。建议把引导强度调回中间档位，在"贴题"和"自然"之间找平衡。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 判断题："Stable Diffusion 是直接在像素上一步步去噪的。"对吗？潜空间帮它省下了什么？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>不对。</b>直接在上百万个像素上做几十步扩散太贵。Stable Diffusion 先把图压缩进小得多的<b>潜空间</b>，在那里完成全部去噪，最后才解码回像素 —— 像先在小草稿上构思、定稿后再上色放大，省下数量级的算力。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="20-agents.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">20 Agent 智能体：会自己干活的 AI</div>
+    </a>
+    <a class="card next" href="22-multimodal.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">22 多模态：AI 同时看懂图文音</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 共享：从设计 token 取色 + 程序化图案（两处演示复用） ---------- */
+function cssVar(n) {
+  return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+}
+var PATTERNS = {
+  rings: function (g, S) {
+    g.fillStyle = cssVar('--bg-0');
+    g.fillRect(0, 0, S, S);
+    var colors = [cssVar('--amber'), cssVar('--terracotta')];
+    for (var i = 5; i >= 0; i--) {
+      g.fillStyle = colors[i % 2];
+      g.beginPath();
+      g.arc(S / 2, S / 2, S * 0.08 + i * S * 0.075, 0, Math.PI * 2);
+      g.fill();
+    }
+  },
+  mountain: function (g, S) {
+    g.fillStyle = cssVar('--sky');
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = cssVar('--amber');
+    g.beginPath();
+    g.arc(S * 0.7, S * 0.3, S * 0.12, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = cssVar('--sage');
+    g.beginPath();
+    g.moveTo(0, S);
+    g.lineTo(0, S * 0.62);
+    g.lineTo(S * 0.34, S * 0.36);
+    g.lineTo(S * 0.62, S * 0.66);
+    g.lineTo(S * 0.8, S * 0.52);
+    g.lineTo(S, S * 0.7);
+    g.lineTo(S, S);
+    g.closePath();
+    g.fill();
+    g.fillStyle = cssVar('--fg-0');
+    g.beginPath();
+    g.moveTo(0, S);
+    g.lineTo(S * 0.18, S * 0.66);
+    g.lineTo(S * 0.46, S);
+    g.closePath();
+    g.fill();
+    g.beginPath();
+    g.moveTo(S * 0.4, S);
+    g.lineTo(S * 0.72, S * 0.6);
+    g.lineTo(S, S);
+    g.closePath();
+    g.fill();
+  },
+  checker: function (g, S) {
+    var n = 8, cell = S / n;
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        g.fillStyle = (r + c) % 2 === 0 ? cssVar('--terracotta') : cssVar('--bg-0');
+        g.fillRect(c * cell, r * cell, cell + 1, cell + 1);
+      }
+    }
+  }
+};
+
+/* ---------- 演示一：50 步去噪（原理示意） ---------- */
+(function () {
+  var canvas = document.getElementById('dn-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var S = canvas.width;
+  var MAX = 50;
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var slider = document.getElementById('dn-slider');
+  var valEl = document.getElementById('dn-val');
+  var capEl = document.getElementById('dn-caption');
+  var phaseEl = document.getElementById('dn-phase');
+  var playBtn = document.getElementById('dn-play');
+  var chips = document.querySelectorAll('#dn-chips .chip');
+
+  /* 固定种子噪声：每次刷新页面看到同一张"雪花" */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var noise = new Uint8ClampedArray(S * S * 4);
+  (function () {
+    var rand = mulberry32(20250611);
+    for (var i = 0; i < noise.length; i += 4) {
+      noise[i] = rand() * 255;
+      noise[i + 1] = rand() * 255;
+      noise[i + 2] = rand() * 255;
+      noise[i + 3] = 255;
+    }
+  })();
+
+  /* ----- 程序化目标图案（颜色全部取自设计 token） ----- */
+  var targetC = document.createElement('canvas');
+  targetC.width = targetC.height = S;
+  var blurC = document.createElement('canvas');
+  blurC.width = blurC.height = S;
+
+  var currentKey = 'rings';
+  function buildTarget() {
+    var g = targetC.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    PATTERNS[currentKey](g, S);
+  }
+
+  /* ----- 渲染：目标(随步数减少模糊) 与 噪声 按比例混合 ----- */
+  function render(step) {
+    var p = step / MAX;
+    var w = p * p * (3 - 2 * p);            /* 平滑混合权重：噪声幅度随步数衰减 */
+    var blurPx = (1 - p) * 6;               /* 早期更糊，后期锐化 */
+    var b = blurC.getContext('2d');
+    b.filter = 'none';
+    b.clearRect(0, 0, S, S);
+    b.drawImage(targetC, 0, 0);             /* 先铺一层清晰图，避免模糊边缘发虚 */
+    if (blurPx > 0.05) {
+      b.filter = 'blur(' + blurPx.toFixed(1) + 'px)';
+      b.drawImage(targetC, 0, 0);
+      b.filter = 'none';
+    }
+    var img = b.getImageData(0, 0, S, S);
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      d[i] = d[i] * w + noise[i] * (1 - w);
+      d[i + 1] = d[i + 1] * w + noise[i + 1] * (1 - w);
+      d[i + 2] = d[i + 2] * w + noise[i + 2] * (1 - w);
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    valEl.textContent = step;
+    capEl.textContent = '步数 ' + step + ' / ' + MAX + ' · 噪声残留 ' + Math.round((1 - w) * 100) + '%';
+    if (p === 0) {
+      phaseEl.textContent = '🌫️ 纯噪声：这就是生成的起点 —— 一张随机雪花，画"藏"在里面。';
+    } else if (p < 0.35) {
+      phaseEl.textContent = '🎨 前几步先定大色块：去噪器在决定整体色调和布局往哪边走。';
+    } else if (p < 0.75) {
+      phaseEl.textContent = '🖼️ 轮廓浮现：构图和色块已定，细节还糊着 —— 中段步骤负责成形。';
+    } else if (p < 1) {
+      phaseEl.textContent = '🔍 细节冲刺：最后几步锐化边缘和纹理，画面越来越清晰。';
+    } else {
+      phaseEl.textContent = '✅ 去噪完成。这幅画不存在于任何素材库 —— 它是从噪声里被一步步"擦"出来的。';
+    }
+  }
+
+  function setStep(step) {
+    slider.value = step;
+    render(step);
+  }
+
+  /* ----- 自动播放（reduced-motion：直接显示完成态） ----- */
+  var raf = null;
+  function stopPlay() {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    playBtn.textContent = '▶ 自动播放';
+  }
+  playBtn.addEventListener('click', function () {
+    if (raf) { stopPlay(); return; }
+    if (reduced) { setStep(MAX); return; }
+    playBtn.textContent = '⏸ 停止';
+    var t0 = performance.now(), dur = 4000;
+    function frame(t) {
+      var k = Math.min(1, (t - t0) / dur);
+      setStep(Math.round(k * MAX));
+      if (k < 1) { raf = requestAnimationFrame(frame); } else { stopPlay(); }
+    }
+    raf = requestAnimationFrame(frame);
+  });
+
+  slider.addEventListener('input', function () {
+    stopPlay();
+    render(+slider.value);
+  });
+
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      chips.forEach(function (x) { x.classList.toggle('active', x === c); });
+      currentKey = c.dataset.key;
+      buildTarget();
+      render(+slider.value);
+    });
+  });
+
+  /* 深浅色切换时用新 token 重画 */
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onScheme = function () { buildTarget(); render(+slider.value); };
+    if (mq.addEventListener) { mq.addEventListener('change', onScheme); }
+  }
+
+  buildTarget();
+  setStep(reduced ? MAX : 0);
+})();
+
+/* ---------- 演示二：CFG 引导强度小实验（原理示意） ---------- */
+(function () {
+  var canvas = document.getElementById('cfg-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var S = canvas.width;
+  var slider = document.getElementById('cfg-slider');
+  var valEl = document.getElementById('cfg-val');
+  var titleEl = document.getElementById('cfg-title');
+  var descEl = document.getElementById('cfg-desc');
+
+  var base = document.createElement('canvas');
+  base.width = base.height = S;
+  function rebuild() {
+    var g = base.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    PATTERNS.mountain(g, S);
+  }
+
+  var TIERS = [
+    { max: 4,  title: '🙉 几乎不听导航', desc: '引导太弱：模型自由发挥，画面发灰、模糊，常常跑题 ——「落日」可能根本不出现。' },
+    { max: 9,  title: '✅ 贴题又自然', desc: '常用档位：既听文字的话，又保住画面的自然质感。多数产品的默认值就在这一带。' },
+    { max: 14, title: '📢 越来越听话', desc: '更贴题了，但代价开始显现：颜色变艳、对比变冲，画面有点"用力过猛"。' },
+    { max: 20, title: '🍭 过饱和警告', desc: '导航音量开到最大：颜色过饱和、画面发"塑料"—— 司机被吼得紧张，反而开不好车。' }
+  ];
+
+  function render() {
+    var cfg = +slider.value;
+    valEl.textContent = cfg;
+    ctx.clearRect(0, 0, S, S);
+    ctx.filter = 'none';
+    ctx.drawImage(base, 0, 0);
+    if (cfg < 7) {
+      var k = (7 - cfg) / 6;
+      ctx.filter = 'saturate(' + (1 - k * 0.55).toFixed(2) + ') blur(' + (k * 2.4).toFixed(1) + 'px)';
+      ctx.drawImage(base, 0, 0);
+      ctx.filter = 'none';
+    } else if (cfg > 8) {
+      var k2 = (cfg - 8) / 12;
+      ctx.filter = 'saturate(' + (1 + k2 * 1.6).toFixed(2) + ') contrast(' + (1 + k2 * 0.4).toFixed(2) + ')';
+      ctx.drawImage(base, 0, 0);
+      ctx.filter = 'none';
+    }
+    for (var i = 0; i < TIERS.length; i++) {
+      if (cfg <= TIERS[i].max) {
+        titleEl.textContent = TIERS[i].title;
+        descEl.textContent = TIERS[i].desc;
+        break;
+      }
+    }
+  }
+
+  slider.addEventListener('input', render);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) {
+      mq.addEventListener('change', function () { rebuild(); render(); });
+    }
+  }
+  rebuild();
+  render();
+})();
+</script>
+
+</body>
+</html>

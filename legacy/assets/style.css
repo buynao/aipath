@@ -1,0 +1,190 @@
+/* ============================================================
+   拓智 · AI Path — 设计系统
+   视觉语言对齐 learn-english / tuoci-app：
+   暖纸质感 + 墨色单色品牌 + 克制语义色
+   ============================================================ */
+
+:root {
+  /* surfaces (paper) */
+  --bg-0: #F4EFE2;                       /* pageBackground · paper600 */
+  --bg-card: rgba(250, 246, 238, 0.96);  /* pageCard · paper850 */
+  --bg-lift: #FDFBF6;                    /* modal lift · paper880 */
+  --bg-inset: #F1EBDC;                   /* 浅色内嵌表面 · paper650 */
+  /* ink text (bark) */
+  --fg-0: #1A1410;                       /* textPrimary · bark900 */
+  --fg-1: #4A4238;                       /* textSecondary · bark700 */
+  --fg-2: #8B8275;                       /* caption · bark600 */
+  /* brand = ink pill */
+  --accent: #1A1410;
+  --on-accent: #FAF6EC;
+  /* hairlines */
+  --hairline: rgba(26, 20, 16, 0.08);
+  --hairline-strong: rgba(26, 20, 16, 0.14);
+  /* glass */
+  --glass: rgba(255, 255, 255, 0.55);
+  --nav-glass: rgba(244, 239, 226, 0.86);
+  /* status hues — 只用于状态/标签/图示，不做品牌色 */
+  --sage: #7FA378;
+  --terracotta: #B84F48;
+  --amber: #BA8651;
+  --sky: #5C88B0;
+  --sage-bg: rgba(127, 163, 120, 0.12);
+  --terracotta-bg: rgba(184, 79, 72, 0.10);
+  --amber-bg: rgba(186, 134, 81, 0.12);
+  --sky-bg: rgba(92, 136, 176, 0.12);
+  /* radius scale */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px; --r-pill: 999px;
+  --shadow-card: 0 1px 2px rgba(26,20,16,0.04), 0 8px 28px rgba(26,20,16,0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-0: #141414;
+    --bg-card: #1f1f1f;
+    --bg-lift: #232325;
+    --bg-inset: #0E0E0E;
+    --fg-0: #FAF6EC;
+    --fg-1: rgba(250, 246, 238, 0.60);
+    --fg-2: rgba(250, 246, 238, 0.40);
+    --accent: #FAF6EC;
+    --on-accent: #1A0F08;
+    --hairline: rgba(255, 255, 255, 0.08);
+    --hairline-strong: rgba(255, 255, 255, 0.14);
+    --glass: rgba(255, 255, 255, 0.06);
+    --nav-glass: rgba(20, 20, 20, 0.82);
+    --sage: #9DC097;
+    --terracotta: #E0625A;
+    --amber: #E8A866;
+    --sky: #7AA8D4;
+    --sage-bg: rgba(157, 192, 151, 0.14);
+    --terracotta-bg: rgba(224, 98, 90, 0.13);
+    --amber-bg: rgba(232, 168, 102, 0.13);
+    --sky-bg: rgba(122, 168, 212, 0.14);
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+::selection { background: var(--accent); color: var(--on-accent); }
+.container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+.container-narrow { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- 字阶（对齐 HIG：字号 + 两档字重 + 颜色做层级） ---------- */
+h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 700; line-height: 1.25; letter-spacing: -0.015em; }
+h3 { font-size: 17px; font-weight: 600; }
+.subhead { font-size: 17px; color: var(--fg-1); }
+.footnote { font-size: 13px; color: var(--fg-2); }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--fg-2);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* ---------- 导航：毛玻璃吸顶 ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--nav-glass);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--hairline);
+}
+.nav-inner {
+  max-width: 1080px; margin: 0 auto; padding: 0 24px;
+  height: 60px; display: flex; align-items: center; justify-content: space-between;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--fg-0); text-decoration: none; }
+.brand-dot {
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  background: var(--accent); color: var(--on-accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700;
+}
+.nav-links { display: flex; gap: 22px; align-items: center; }
+.nav-links a { font-size: 15px; font-weight: 500; color: var(--fg-1); text-decoration: none; }
+.nav-links a:hover { color: var(--fg-0); }
+
+/* ---------- 按钮：主 CTA = 墨色胶囊；次级 = ghost-glass ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  height: 50px; padding: 0 26px; border-radius: var(--r-pill);
+  font-size: 16px; font-weight: 600; text-decoration: none; border: none;
+  cursor: pointer; transition: transform 0.18s ease, opacity 0.18s ease;
+  color: var(--fg-0);
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { opacity: 0.88; }
+.btn-glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--hairline-strong);
+}
+.btn-glass:hover { border-color: var(--fg-2); }
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}
+.card-pad { padding: 24px; }
+
+/* ---------- 药丸标签（语义色仅在此使用） ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 10px; border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 600; line-height: 1.7;
+  white-space: nowrap;
+}
+.pill-sky        { color: var(--sky);        background: var(--sky-bg); }
+.pill-terracotta { color: var(--terracotta); background: var(--terracotta-bg); }
+.pill-amber      { color: var(--amber);      background: var(--amber-bg); }
+.pill-sage       { color: var(--sage);       background: var(--sage-bg); }
+.pill-ink        { color: var(--fg-1);       background: var(--bg-inset); }
+
+/* ---------- 难度点（墨色，留语义色给痛点标签） ---------- */
+.dots { display: inline-flex; gap: 4px; align-items: center; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hairline-strong); }
+.dot.on { background: var(--fg-0); }
+
+/* ---------- 列表行 ---------- */
+.row-list { display: flex; flex-direction: column; }
+.row-list > * + * { border-top: 1px solid var(--hairline); }
+
+/* ---------- 例句块（沿用：term = 术语，plain = 人话） ---------- */
+.example {
+  background: var(--bg-inset);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+}
+.example .en { font-size: 17px; font-weight: 500; }
+.example .zh { font-size: 14px; color: var(--fg-1); margin-top: 2px; }
+.example .en .hl { font-weight: 700; border-bottom: 2px solid var(--sage); }
+
+/* ---------- 正误对照 ---------- */
+.wrong-right { display: flex; flex-direction: column; gap: 8px; }
+.wr-line { display: flex; gap: 10px; align-items: baseline; font-size: 16px; }
+.wr-mark { font-weight: 700; flex: none; width: 1.4em; text-align: center; }
+.wr-line.bad  .wr-mark { color: var(--terracotta); }
+.wr-line.good .wr-mark { color: var(--sage); }
+.wr-line.bad  .wr-text { color: var(--fg-1); text-decoration: line-through; text-decoration-color: var(--terracotta); text-decoration-thickness: 1.5px; }
+.wr-line.good .wr-text { font-weight: 600; }
+
+/* ---------- 页脚 ---------- */
+footer {
+  border-top: 1px solid var(--hairline);
+  margin-top: 80px; padding: 36px 0 56px;
+  color: var(--fg-2); font-size: 13px;
+}
+footer .container { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

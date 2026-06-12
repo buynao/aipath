@@ -1,0 +1,1117 @@
+
+
+
+
+<h1 class="title">How LLMs Actually Work</h1>
+
+<span class="date">
+    <time datetime="01-06-2026">Monday. June 01, 2026</time>
+     - <span class="reading-time" title="Estimated read time">
+
+
+
+        26 mins
+
+</span>
+
+</span>
+
+
+    <div class="post-tags">
+
+            <a class="item" href="https://0xkato.xyz/tags/#machine-learning">Machine Learning</a>
+
+            <a class="item" href="https://0xkato.xyz/tags/#transformers">Transformers</a>
+
+            <a class="item" href="https://0xkato.xyz/tags/#llm">LLM</a>
+
+            <a class="item" href="https://0xkato.xyz/tags/#neural-networks">Neural Networks</a>
+
+            <a class="item" href="https://0xkato.xyz/tags/#ai">AI</a>
+
+    </div>
+
+
+<p>This post is a <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="walkthrough" data-tuoci-word-id="c3087d55-2f05-4efd-80b2-05510c420f31" data-tuoci-progress-id="eccf1f9a-6fef-4194-8c49-60a5fdb4da12" tabindex="0" role="button" aria-label="查看 Tuoci 释义: walkthrough">walkthrough</span> of how LLMs work. Modern LLMs are mostly built by <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="stacking" data-tuoci-word-id="608a2da2-1ef3-4b68-b95b-02206f42bef0" data-tuoci-progress-id="c4aad89c-0bce-4899-bb37-ddc8787f5aca" tabindex="0" role="button" aria-label="查看 Tuoci 释义: stacking">stacking</span> transformer blocks over and over, so understanding the transformer machinery gets you most of the way there.</p>
+
+<p>I’ll cover the core mechanisms inside modern transformer-based LLMs, without all that sticky math stuff. Don’t get me wrong, you should learn the math, but this can serve as an introduction.</p>
+
+<p>Most modern LLMs share the same transformer-family skeleton. The differences come from what each one was trained on, the scale and configuration choices, and the post-training done on top. By the end, you should be able to read many modern LLM papers or model cards and know which piece of the architecture each section is talking about.</p>
+
+<p>Here’s the path:</p>
+
+<ol>
+  <li>Tokens, how a string of text becomes a sequence of integers</li>
+  <li>Embeddings, how those integers get meaning</li>
+  <li>Positional encoding, how the model knows what order the tokens came in</li>
+  <li><span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span>, how tokens share information with each other</li>
+  <li>Multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, how the model tracks many kinds of relationships at once</li>
+  <li>The feed-forward network, where a large share of the model’s stored structure lives</li>
+  <li>The residual stream and layer normalization, what makes deep stacks trainable</li>
+  <li>Predicting the next token, what the model actually outputs and how the generation loop works</li>
+  <li>Architecture vs trained weights, what’s broadly shared across modern LLMs, and what’s different</li>
+</ol>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-pipeline.png" alt="Transformer pipeline from tokenization to next-token prediction" class="bigger-image"></p>
+
+<p>Tiny explainers appear throughout so anyone can follow along, regardless of background.</p>
+
+<hr>
+
+<h2 id="tokenization">Tokenization</h2>
+
+<p>Models don’t read text directly. They read integer IDs. The step that converts your prompt into a sequence of those integers.</p>
+
+<p>That conversion step is called tokenization. A tokenizer takes a string and produces a sequence of integers, where each integer points to an entry in a fixed vocabulary. Modern LLM vocabularies usually contain tens of thousands to a few hundred thousand entries.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: token ID</strong><br>
+A token ID is the integer the model uses for one vocabulary entry. The model works with the number, not the written word itself.</p>
+</blockquote>
+
+<p>Tokens aren’t usually whole words. They’re usually subword pieces. The word “tokenization” might split into [“token”, “ization”]. The word “running” might split into [“run”, “ning”]. The reason is efficiency. Whole-word vocabularies are too big and don’t generalize to new words. Character-level vocabularies are too small and force the model to learn even the simplest patterns from scratch. Subword tokenization sits in the middle. The most common pieces become single tokens, and rare or novel words get composed from smaller pieces.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: vocabulary</strong><br>
+The vocabulary is the tokenizer’s fixed list of pieces. Each piece has an ID, and the model can only directly receive IDs from that list.</p>
+</blockquote>
+
+<p>The trade-off shows up in places people don’t expect. The classic example: ask an LLM how many R’s are in “strawberry.” LLMs used to get it wrong. That’s not the model failing at counting. It’s the model not operating on letters directly, only token IDs that happen to spell out a word a human would split letter by letter.</p>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-tokenization.png" alt="Tokenization turns text into token IDs" class="bigger-image"></p>
+
+<p>Different model families use different tokenizers. GPT models use Byte Pair Encoding variants. SentencePiece is common in LLaMA-style models. The choice matters for compute (fewer tokens means less work) and for things like multilingual coverage, but the basic shape is the same. Text in, integers out.</p>
+
+<p>Now that the prompt is a sequence of integers, the next step is to give those integers meaning.</p>
+
+<hr>
+
+<h2 id="embeddings">Embeddings</h2>
+
+<p>A token ID like <code class="language-plaintext highlighter-rouge">1024</code> is just a row index. It doesn’t mean anything by itself. The thing that gives it meaning is a giant table called the embedding matrix.</p>
+
+<p>Every model has one. It has one row per entry in the vocabulary, and each row is a long vector of numbers. The length of each row is the model’s hidden size. In many 7B-class models, that means 4,096 numbers per token. Larger models usually use wider vectors.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: vector</strong><br>
+A vector is a list of numbers. In a transformer, each token becomes a vector so the model can do math with it.</p>
+</blockquote>
+
+<p>When the tokenizer hands the model an integer, the model looks up that row and uses the vector instead. That vector is the token’s embedding. It’s the model’s representation of what that token “means,” learned during training.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: embedding matrix</strong><br>
+The embedding matrix is a lookup table. Token ID in, learned vector out.</p>
+</blockquote>
+
+<p>The interesting property of these embeddings is that semantically similar tokens end up with similar vectors. The vector for “king” is close in space to the vector for “queen,” and the vector for “Paris” is close to “France.” None of this is hard-coded. It emerges from training on enough text, and the model learns these positions because they let it predict text well.</p>
+
+<p>You can do arithmetic on embeddings and it sometimes works. The famous example is <code class="language-plaintext highlighter-rouge">king − man + woman ≈ queen</code>. The geometry of embedding space carries real semantic structure, even though nobody told the model to build it that way.</p>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-embedding-analogy.png" alt="Embedding space analogy with semantic relationships" class="bigger-image"></p>
+
+<p>Worth being clear on: at this stage every token has been replaced by its embedding, but the embedding alone says nothing about where the token sits in the sequence. The vector for “dog” is the same vector whether “dog” is the first word in your prompt or the fifth. That’s a problem.</p>
+
+<p>That’s the gap positional encoding fills.</p>
+
+<hr>
+
+<h2 id="positional-encoding">Positional encoding</h2>
+
+<p>Plain self-<span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> doesn’t have a built-in representation of word order. Without some positional signal, it has no direct way to know that “dog” came before “bites” instead of after it.</p>
+
+<p>Word order changes meaning. So the model needs another piece. It needs a way to inject the position of each token into the math.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: positional encoding</strong><br>
+Positional encoding is how the model gets order information. It tells the model where each token sits in the sequence.</p>
+</blockquote>
+
+<p>The original transformer paper (Vaswani et al. 2017) did this by giving each position its own pattern of numbers and adding it directly to each token’s embedding before any other processing. Position 1 had one pattern, position 5 had a different pattern, position 100 had another. The patterns came from sine and cosine waves at different frequencies. Now the embedding for “dog” at position 1 was different from the embedding for “dog” at position 5, just because the position pattern added to it was different.</p>
+
+<p>That worked, and sinusoidal encodings were chosen partly because they can extrapolate beyond the exact sequence lengths seen during training. But additive position schemes still had two problems that became important as models scaled up.</p>
+
+<p>First, the embedding had to carry both meaning and position in the same set of numbers. There’s only so much you can pack in.</p>
+
+<p>Second, learned absolute position embeddings in particular don’t generalize cleanly. If you trained on prompts up to 2,048 tokens long, the model never saw position 5,000 during training, and the embedding for that position was not learned in the same way.</p>
+
+<p>Modern models mostly use a different scheme called Rotary Position Embeddings (RoPE), introduced by Su et al. in 2021 and now used in LLaMA, Mistral, Gemma, Qwen, and most other open-weight families. The intuition: instead of adding position info to each token’s vector, RoPE rotates the Query and Key vectors by an angle that depends on the token’s position. A token at position 1 gets a small turn, a token at position 100 gets a bigger turn. When two tokens are later compared during <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, what matters is the difference between their Query and Key rotations, which encodes how far apart they are.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: RoPE</strong><br>
+RoPE stands for Rotary Position Embeddings. Instead of adding a position vector, it rotates Query and Key vectors so relative distance shows up during <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>.</p>
+</blockquote>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-rope.png" alt="Rotary position embeddings rotate vectors by position" class="bigger-image"></p>
+
+<p>The practical advantages are real. RoPE encodes relative position naturally (which is closer to what <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> actually wants). It generalizes better to longer contexts. And it doesn’t add new parameters to the model.</p>
+
+<p>Even with good positional encoding, modern LLMs have a documented “lost in the middle” problem (Liu et al. 2023). They use information at the start and end of long prompts more reliably than information buried in the middle. That’s why prompt engineering tips like “put important context first” or “repeat key info at the end” actually help. The model isn’t using every part of your prompt equally well.</p>
+
+<p>With token meaning and position both encoded, the next question is how do tokens actually exchange information?</p>
+
+<hr>
+
+<h2 id="attention"><span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span></h2>
+
+<p>This is the mechanism that gave the architecture its name. <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span>.</p>
+
+<p>Inside every transformer layer, <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> does one thing. It lets each token look at the other tokens it is allowed to see and decide which ones matter for what comes next.</p>
+
+<p>It does this by giving each token three roles at once. Each token gets transformed into three new vectors, called Query, Key, and Value (Q, K, V).</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: Q, K, V</strong><br>
+Query means “what am I looking for,” Key means “what do I match with,” and Value is the information that gets copied when the match is strong.</p>
+</blockquote>
+
+<ul>
+  <li>The Query asks, “what am I looking for from other tokens?”</li>
+  <li>The Key says, “this is what I offer to tokens looking at me.”</li>
+  <li>The Value carries, “this is what gets passed along when a match happens.”</li>
+</ul>
+
+<p>The same token plays all three roles at the same time. The Q, K, V transformations are learned matrices, so the model figures out during training what each token should look for and what it should offer.</p>
+
+<p>Matching happens through a similarity score. Each token’s Query is compared against the Key of each token it is allowed to see, using a scaled dot product. Intuitively, this measures how much the two vectors line up. The scaling keeps the numbers stable before softmax.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: dot product</strong><br>
+A dot product is a simple way to score how aligned two vectors are. Higher alignment means a stronger match.</p>
+</blockquote>
+
+<p>The match scores then get turned into weights using softmax. Softmax takes any set of numbers and turns them into a probability-like distribution that sums to 1. Tokens with higher match scores get higher weights, and the weights are then used to take a weighted average of the value vectors.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: softmax</strong><br>
+Softmax turns raw scores into weights that add up to 1. Big scores get big weights, small scores get small weights.</p>
+</blockquote>
+
+<p>An example. Consider the sentence “The cat that I saw yesterday was sleeping.” When the model processes “was,” it needs to figure out what’s doing the sleeping. The Query vector for “was” gets compared against the Key vectors of the tokens it is allowed to see. The dot product with “cat” is high, because the model has learned that verbs like “was” need a subject and that subjects like “cat” produce Key vectors that line up well. The dot product with “yesterday” is low. Softmax turns those scores into weights, “cat” gets a high weight, “yesterday” gets a low one. The model then takes a weighted sum of the corresponding value vectors, so the value for “cat” dominates the result. The new representation of “was” is now mostly shaped by the value of “cat.” That’s how a token several positions back becomes the referent.</p>
+
+<p>There’s a constraint specific to GPT-style language models, which is that they generate text left to right. A token at position 5 is only allowed to attend to positions 1 through 5. It cannot attend to tokens at positions 6, 7, 8, because those haven’t been generated yet. This is called causal masking. The implementation is simple: future tokens get match scores so low they end up with effectively zero weight after softmax.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: causal masking</strong><br>
+Causal masking hides future tokens. It keeps a decoder-only language model from looking ahead while predicting the next token.</p>
+</blockquote>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-attention-heatmap.png" alt="Attention heatmap showing causal masking and high attention to cat" class="bigger-image"></p>
+
+<p>One of the most interesting findings in interpretability research is about specialized <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> heads called induction heads, found by Anthropic in 2022. These heads learn to spot patterns of the form “A B … A” in the prompt and predict that B comes next. When the model sees “A” the second time, the induction head looks back to where “A” appeared before, sees what came after, and copies that. They’re one of the clearest known mechanisms behind in-context learning, the ability of an LLM to pick up a pattern from your prompt and continue it.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: induction head</strong><br>
+An induction head is an <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> head that notices repeated patterns in the prompt and helps continue them.</p>
+</blockquote>
+
+<p><span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span> has one big cost. In full <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, each token compares against all the tokens it is allowed to see, so doubling the prompt length roughly quadruples the work. This is why long prompts are expensive to run, and why a lot of recent research is about making <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> more efficient (FlashAttention, sparse <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, linear <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>).</p>
+
+<p>But one <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> head only gives the model one learned view of those relationships.</p>
+
+<hr>
+
+<h2 id="multi-head-attention">Multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span></h2>
+
+<p>A single <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> pass gives the model one way of deciding which tokens matter to which other tokens. That’s not enough. Language has many relationships happening at the same time. Subject and verb agreement. Pronouns and the names they refer to. Long-range references between sentences. Word order and local phrases.</p>
+
+<p>Multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> solves this by running <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> many times in parallel, with each parallel pass operating in its own smaller space. Each parallel pass is called a head.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> head</strong><br>
+An <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> head is one independent <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> pass with its own learned projections.</p>
+</blockquote>
+
+<p>The part that’s often described wrong, including in plenty of tutorials. Each head doesn’t get a literal slice of the original token vector. Each head has its own learned projection matrices that map the full token vector down to its own smaller Q, K, and V vectors. So if a model has 4,096 numbers per token and 32 heads, each head usually works in a 128-dimensional space, but those 128 numbers are a learned projection of the full 4,096, not a fixed slice. Different “views” of the same token, not different chunks of it.</p>
+
+<p>Each head runs its <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> pass independently. Then the outputs of all the heads get concatenated and passed through a final linear layer that mixes them back into one full-size vector. The model learns that final mixing too.</p>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-multi-head-attention.png" alt="Multi-head attention combines specialized attention heads" class="bigger-image"></p>
+
+<p>What makes this interesting is that different heads often end up partially specialized. The model is never told what each head should do. Specialization emerges naturally during training. Researchers have found heads that track grammar (linking verbs to their objects, articles to their nouns), heads that figure out which pronoun refers to which name, heads that track positional patterns, induction heads, and many more. A single transformer layer might have 32 heads. A modern frontier model has dozens of layers. So a typical LLM has thousands of <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> heads in total, each adding its own learned view.</p>
+
+<p>There’s a practical cost concern that drove a recent architectural change. Each head needs to keep its Key and Value vectors in memory for all the tokens already generated, so that when a new token gets generated the model doesn’t have to recompute everything from scratch. This is called the KV cache, and it’s the main memory cost of running an LLM at long context lengths.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: KV cache</strong><br>
+The KV cache stores old Key and Value vectors during generation. It saves the model from recomputing the whole prompt every time it adds a token.</p>
+</blockquote>
+
+<p>Modern decoder-only LLMs mostly use a variant called Grouped-Query <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span> (GQA). Instead of every head having its own keys and values, groups of heads share the same key and value heads. LLaMA-2 70B has 64 query heads but only 8 key/value heads. Mistral 7B has 32 query heads and 8 key/value heads. The result is nearly the same accuracy as full multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> but with much less memory pressure and inference cost.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: GQA</strong><br>
+Grouped-Query <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span> lets multiple query heads share fewer key/value heads. That cuts KV-cache memory while keeping many query views.</p>
+</blockquote>
+
+<hr>
+
+<h2 id="feed-forward-network">Feed-forward network</h2>
+
+<p>After <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> finishes mixing information between tokens, every layer has a second step that nobody talks about as much. The feed-forward network.</p>
+
+<p>Where <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> is about tokens talking to each other, the feed-forward network is about each token, on its own, doing more processing. It runs on every token’s vector independently, with no cross-token mixing.</p>
+
+<p>The feed-forward network does three things in order:</p>
+<ol>
+  <li>Expand the token’s vector to a larger size (the original transformer used 4x, while modern SwiGLU models often use different expansion sizes).</li>
+  <li>Apply a non-linear function.</li>
+  <li>Compress the vector back down to its original size.</li>
+</ol>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-ffn.png" alt="Feed-forward network expands, transforms, and compresses each token vector" class="bigger-image"></p>
+
+<p>That non-linear step in the middle is doing something specific that’s worth understanding. A non-linearity is a function that bends its input. The simplest one, ReLU, outputs zero for any negative number and passes positive numbers through unchanged.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: non-linearity</strong><br>
+A non-linearity is a function that prevents the network from collapsing into one big linear transformation.</p>
+</blockquote>
+
+<p>Without it, the FFN would just be two linear layers stacked together, and <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="stacking" data-tuoci-word-id="608a2da2-1ef3-4b68-b95b-02206f42bef0" data-tuoci-progress-id="c4aad89c-0bce-4899-bb37-ddc8787f5aca" tabindex="0" role="button" aria-label="查看 Tuoci 释义: stacking">stacking</span> pure linear math collapses. Two linear layers in a row are mathematically equivalent to a single linear layer, and a hundred linear layers in a row are still equivalent to one. The non-linearity is what stops that collapse, and it’s the reason the FFN can do something richer than a single matrix multiplication.</p>
+
+<p>The original transformer used ReLU. GPT and BERT moved to GELU. Modern models like LLaMA, Mistral, and PaLM use SwiGLU. The expand-then-compress structure stayed the same. The non-linearity itself is what’s been iterated on.</p>
+
+<p>Most of the parameters in a dense transformer model live in the FFN, not in <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>. A large share of the weights sit in feed-forward layers.</p>
+
+<p>And those parameters aren’t generic. They’re where much of the model’s stored factual and semantic structure lives. Researchers have found that some neurons inside the FFN are strongly associated with specific concepts or facts. One neuron might activate strongly on Eiffel-Tower-related text. Another on programming languages. Another on past-tense verbs. When a model “knows” that Paris is the capital of France, that fact is represented across FFN weights and activations in specific layers.</p>
+
+<p>This stored-memory property has an interesting consequence. Researchers have figured out how to directly edit some facts in a trained model without retraining it. Methods like ROME (Rank-One Model Editing) can change “the Eiffel Tower is in Paris” to “the Eiffel Tower is in Rome” by making a targeted low-rank edit to a specific FFN weight matrix. The model then tends to generate text consistent with the edited association.</p>
+
+<p>Some modern frontier models have started replacing the dense FFN with something called Mixture of Experts (MoE). Instead of one feed-forward network per layer, the model has many parallel FFNs (called experts) and a tiny router network that picks which experts process each token. Mixtral 8x7B has 8 experts per layer; only 2 are activated for any given token. The total parameter count goes up substantially, but the compute per token grows much more slowly because only a few experts run. That’s how you scale parameter count without scaling inference cost in proportion.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: MoE</strong><br>
+Mixture of Experts means the model has several feed-forward networks and routes each token through only a few of them.</p>
+</blockquote>
+
+<p>Mixtral 8x7B has 46.7 billion total parameters but uses about 12.9 billion per token. This has become a common option for very large models because it lets you keep growing the parameter count without making inference cost grow in proportion.</p>
+
+<hr>
+
+<h2 id="residual-stream-and-layer-normalization">Residual stream and layer normalization</h2>
+
+<p>The residual stream is what makes the model “additive” instead of “replacing.” After <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> runs, or after the feed-forward network runs, the result usually doesn’t replace the token’s vector. It gets added to it. Position by position. The new vector equals the old vector plus the sub-block’s output.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: residual connection</strong><br>
+A residual connection adds a block’s output back to the vector it started from. It gives information and gradients a shortcut through the network.</p>
+</blockquote>
+
+<p>Across thirty or fifty or a hundred layers, each layer’s contribution accumulates instead of simply overwriting the previous vector. That running sum is called the residual stream, and it has a strange property. The original input embeddings still have a direct additive path into late layers, mixed together with every sub-block’s contribution along the way.</p>
+
+<p><img src="./How LLMs Actually Work _ 0xkato_files/transformer-residual-stream.png" alt="Residual stream accumulates attention and feed-forward outputs" class="bigger-image"></p>
+
+<p>Residual connections weren’t invented for transformers. They came from ResNet (He et al. 2015), originally for image recognition. The motivation was that deep networks were impossible to train. The training signal got too weak (or sometimes too strong) by the time it traveled back through many layers. The model couldn’t actually learn from its own mistakes. Adding a shortcut path let the signal flow directly back from the output to the input. Suddenly you could train networks with hundreds of layers. Transformers inherited the same trick.</p>
+
+<p>In modern interpretability research, the residual stream has become the central object. Every component, every <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> head, every feed-forward network, even the unembedding step at the end, reads from the residual stream and writes back to it.</p>
+
+<p>The second piece, layer normalization, exists for a much more practical reason. Without it, the residual stream would not stay stable. Numbers flowing through dozens of additions tend to either explode upward or collapse toward zero. Either way, training fails. Layer normalization rescales each token’s vector back into a controlled range between sub-blocks.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: layer normalization</strong><br>
+Layer normalization rescales a token vector so its numbers stay in a stable range while the model trains.</p>
+</blockquote>
+
+<p>The original 2017 transformer applied normalization AFTER each sub-block (post-norm). This worked for shallow models but became harder to train reliably as depth increased. Modern transformers (GPT-2 onward, LLaMA, Mistral) commonly apply normalization BEFORE each sub-block (pre-norm). That’s one of the changes that made very deep transformers easier to train.</p>
+
+<p>The function itself has also changed. Many modern open models (LLaMA, Mistral, Gemma, Phi) use a simpler variant called RMSNorm. The original layer normalization did two things at once: shift each vector toward zero, then rescale the size of the numbers. RMSNorm drops the shift step and keeps only the rescaling. Empirically, the rescaling carries most of the benefit while being cheaper to compute.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: RMSNorm</strong><br>
+RMSNorm is a cheaper normalization method that rescales vector size without subtracting the mean first.</p>
+</blockquote>
+
+<p>So that’s the unglamorous machinery. Without residual connections, very deep models become much harder to train. Without layer normalization, the running sum can blow up or collapse. With both, you get models hundreds of layers deep.</p>
+
+<hr>
+
+<h2 id="next-token-prediction">Next-token prediction</h2>
+
+<p>After all the layers of <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> and feed-forward processing finish, the model has a vector for each token in the sequence. During generation, to predict the next word, it takes the final vector of the last token only.</p>
+
+<p>That last vector gets converted into one number per possible next token. If the vocabulary has 100,000 tokens, that’s 100,000 numbers. These numbers are called logits. They aren’t probabilities yet. They can be any size, positive or negative.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: logits</strong><br>
+Logits are raw scores for each possible next token. They become probabilities only after softmax.</p>
+</blockquote>
+
+<p>A softmax turns those logits into the model’s probability distribution over possible next tokens. Same operation as before, different place in the model.</p>
+
+<p>The model usually does not just pick the highest-probability token every time. Decoding settings control how deterministic or varied the output is. Temperature changes how sharp the distribution is. Top-k and top-p limit the choices to the most plausible next tokens. That is why the same model can feel precise in one setting and more creative in another.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: temperature</strong><br>
+Temperature controls randomness during sampling. Low temperature makes the model more conservative; high temperature makes it more varied.</p>
+</blockquote>
+
+<p>Once a token is picked, it gets added to the input. The model runs the next step on the longer sequence, usually reusing the KV cache so it doesn’t recompute the whole prefix from scratch. New <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> for the new token. New feed-forward. New final vector. New prediction. The loop continues until the model emits an end-of-sequence token or hits a length limit. A whole paragraph is just this loop, one token at a time.</p>
+
+<p>This single objective, predicting the next token, is the core training signal for a base LLM. The base model isn’t trained on factual accuracy, conversational ability, reasoning, or coding directly. It’s trained to predict the next token in massive amounts of text. Later post-training can then tune the model for instruction following, preference, safety, and conversational behavior.</p>
+
+<p>There’s been a major efficiency innovation worth knowing about. It’s called speculative decoding. A small fast model proposes several tokens ahead. The big model verifies them in parallel. If the proposed tokens are accepted under the big model’s probabilities, accept them. If not, fall back to the big model. Done correctly, the output distribution matches running the big model alone, but the loop can run much faster.</p>
+
+<blockquote>
+  <p><strong>Tiny explainer: speculative decoding</strong><br>
+Speculative decoding uses a small draft model to guess ahead, then asks the larger model to verify several guessed tokens at once.</p>
+</blockquote>
+
+<p>The next-token prediction loop is the simplest part of the architecture, but it’s what makes the whole thing work.</p>
+
+<hr>
+
+<h2 id="architecture-vs-trained-weights">Architecture vs trained weights</h2>
+
+<p>We’ve gone through the core mechanisms: tokens, embeddings, positional encoding, <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, the feed-forward network, the residual stream and normalization, and the next-token loop on the output side. That’s the basic architecture in one pass.</p>
+
+<p>So what’s actually different between GPT and Claude and Gemini and LLaMA? Public details vary, and the proprietary models do not publish every architectural choice. But at the level this post is covering, they broadly sit in the same transformer-family design space.</p>
+
+<p>Most modern transformer-based LLMs use the same broad structure: tokenization, embeddings, positional encoding, stacked transformer layers (each with multi-head <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span> and a feed-forward network), residual streams, layer normalization, and next-token prediction.</p>
+
+<p>What changes between models is:</p>
+<ol>
+  <li>The trained weights themselves, learned from different training data at different scales.</li>
+  <li>The configuration: number of layers, vocabulary size, head count, parameter count, MoE or dense.</li>
+  <li>The post-training: instruction tuning, learning from human feedback, safety controls applied on top of the base model.</li>
+</ol>
+
+<blockquote>
+  <p><strong>Tiny explainer: weights</strong><br>
+Weights are the learned numbers inside the model. Training changes those numbers until the model predicts text well.</p>
+</blockquote>
+
+<p>The 2023-2025 “modern transformer” stack converged on a common set of choices across many serious frontier and open-weight models, even though different teams arrived at them independently. Pre-norm placement. RMSNorm. RoPE. SwiGLU. Grouped-Query <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">Attention</span>. Mixture of Experts in some of the largest models. None of these were invented at once. They accumulated over about five years of refinement on top of the original 2017 design.</p>
+
+<hr>
+
+<h2 id="where-this-is-going">Where this is going</h2>
+
+<p>The convergence around transformer-family architectures is unusual in machine learning history. For most of the field’s life, every problem had its own specialized network. Image recognition used one kind. Language used another. Audio used a third. Vision and language teams barely shared methods.</p>
+
+<p>Now transformer-style models show up across language, vision, audio, and multimodal systems. The transformer absorbed a huge part of the field.</p>
+
+<p>That could change. Mamba and other state-space models are credible alternatives, especially for very long sequences. Hybrid architectures are being explored. Mixture-of-experts has already shifted what “the architecture” means at the frontier in ways that would have been considered exotic five years ago.</p>
+
+<p>But the core mechanisms in this post (tokens, embeddings, positional encoding, <span class="tuoci-highlight tuoci-highlight-underline" data-tuoci-highlight="true" data-tuoci-word-text="attention" data-tuoci-word-id="6456ef14-049a-4507-a033-2cd8e31cedab" data-tuoci-progress-id="453ded48-654b-47a6-963d-f249552cc8c0" tabindex="0" role="button" aria-label="查看 Tuoci 释义: attention">attention</span>, the feed-forward network, the residual stream and normalization, and next-token prediction) are the durable parts. Even when the architecture changes, these are the problems any sequence model has to solve in some form.</p>
+
+<p>If you’ve made it this far, you can read many modern transformer papers or model cards and know which piece each section is talking about. That’s the goal.</p>
+
+<p>Feedback is extremely welcome. If any of this interests you, please reach out on X. I love making new friends.</p>
+
+
+
+    <div class="blog-navigation">
+
+            <a class="prev" href="https://0xkato.xyz/the-next-jump/">« The Next Jump</a>
+
+
+    </div>
+
+
+
+    <div class="related">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    <h4>Related Posts</h4>
+                    <ul>
+
+                    <li class="relatedPost">
+                        <a href="https://0xkato.xyz/the-next-jump/">The Next Jump
+
+                        </a>
+                    </li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        </ul>
+
+</div>
+
+
+
+<section class="feedback">
+    <p class="feedback-text">
+        Feedback is extremely welcome. If any of this interests you, please reach out on <a href="https://x.com/0xkato" target="_blank" rel="noopener noreferrer">X</a>. I love making new friends.
+    </p>
+</section>
+
+
+
+<footer class="footer-main">
+    0xkato © 2026
+
+    <a class="link" href="https://0xkato.xyz/feed.xml" target="_blank" alt="anchor link to rss feed" aria-label="anchor link to rss feed">
+        <svg class="svg-inline--fa fa-rss" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="rss" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" data-fa-i2svg=""><path fill="currentColor" d="M0 64C0 46.3 14.3 32 32 32c229.8 0 416 186.2 416 416c0 17.7-14.3 32-32 32s-32-14.3-32-32C384 253.6 226.4 96 32 96C14.3 96 0 81.7 0 64zM0 416a64 64 0 1 1 128 0A64 64 0 1 1 0 416zM32 160c159.1 0 288 128.9 288 288c0 17.7-14.3 32-32 32s-32-14.3-32-32c0-123.7-100.3-224-224-224c-17.7 0-32-14.3-32-32s14.3-32 32-32z"></path></svg><!-- <i class="fa-solid fa-rss"></i> Font Awesome fontawesome.com -->
+    </a>
+
+</footer>
+
+
+            </div>
+                </div>
+
+
+
+
+
+<div><template shadowrootmode="closed"><div></div><main class="scam-dialog"></main></template></div></body><div id="immersive-translate-popup" style="all: initial"><template shadowrootmode="open"><div id="mount" style="display: block;"><div class="imt-fb-container right imt-notranslate " data-theme="light" style="z-index: 2147483637; pointer-events: none; right: 0px; top: 70px; display: flex;"><div class="btn-animate" style="transform: translateX(-5px); opacity: 0.7;"><div class="imt-fb-btn imt-fb-more-button imt-fb-side"><div class=" btn-animate" style="position: relative; pointer-events: all; display: inline-block;"><div><svg class="imt-fb-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9.65332 13.3477C10.4097 13.4245 11 14.0632 11 14.8398V18.8398L10.9922 18.9932C10.9205 19.6992 10.3593 20.2604 9.65332 20.332L9.5 20.3398H5.5C4.72334 20.3398 4.08461 19.7496 4.00781 18.9932L4 18.8398V14.8398C4 14.0114 4.67157 13.3398 5.5 13.3398H9.5L9.65332 13.3477ZM18.6533 13.3477C19.4097 13.4245 20 14.0632 20 14.8398V18.8398L19.9922 18.9932C19.9205 19.6992 19.3593 20.2604 18.6533 20.332L18.5 20.3398H14.5C13.7233 20.3398 13.0846 19.7496 13.0078 18.9932L13 18.8398V14.8398C13 14.0114 13.6716 13.3398 14.5 13.3398H18.5L18.6533 13.3477ZM5.5 14.3398C5.22386 14.3398 5 14.5637 5 14.8398V18.8398C5 19.116 5.22386 19.3398 5.5 19.3398H9.5C9.77614 19.3398 10 19.116 10 18.8398V14.8398C10 14.5637 9.77614 14.3398 9.5 14.3398H5.5ZM14.5 14.3398C14.2239 14.3398 14 14.5637 14 14.8398V18.8398C14 19.116 14.2239 19.3398 14.5 19.3398H18.5C18.7761 19.3398 19 19.116 19 18.8398V14.8398C19 14.5637 18.7761 14.3398 18.5 14.3398H14.5ZM9.65332 4.34766C10.4097 4.42445 11 5.06318 11 5.83984V9.83984L10.9922 9.99316C10.9205 10.6992 10.3593 11.2604 9.65332 11.332L9.5 11.3398H5.5C4.72334 11.3398 4.08461 10.7496 4.00781 9.99316L4 9.83984V5.83984C4 5.01142 4.67157 4.33984 5.5 4.33984H9.5L9.65332 4.34766ZM16.1484 3.18848C16.2521 2.83834 16.7479 2.83834 16.8516 3.18848L17.3281 4.79785C17.5079 5.40507 17.9648 5.89104 18.5596 6.1084L20.0576 6.65625C20.3786 6.77361 20.3785 7.22732 20.0576 7.34473L18.5596 7.89258C17.9648 8.10991 17.5079 8.59598 17.3281 9.20312L16.8516 10.8125C16.7479 11.1626 16.2521 11.1626 16.1484 10.8125L15.6719 9.20312C15.4921 8.59598 15.0352 8.10991 14.4404 7.89258L12.9424 7.34473C12.6215 7.22732 12.6214 6.77361 12.9424 6.65625L14.4404 6.1084C15.0352 5.89104 15.4921 5.40507 15.6719 4.79785L16.1484 3.18848ZM5.5 5.33984C5.22386 5.33984 5 5.5637 5 5.83984V9.83984C5 10.116 5.22386 10.3398 5.5 10.3398H9.5C9.77614 10.3398 10 10.116 10 9.83984V5.83984C10 5.5637 9.77614 5.33984 9.5 5.33984H5.5Z" fill="#ED6D8F"></path></svg><svg class="imt-fb-pin-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#B1B1B166"></circle><g transform="translate(2, 2)"><mask id="mask0_39788_745" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10" style="mask-type: alpha;"><rect width="10" height="10" fill="#D9D9D9"></rect></mask><g mask="url(#mask0_39788_745)"><path d="M6.23958 3.76042C6.28819 3.80903 6.35243 3.88194 6.43229 3.97917C6.51215 4.07639 6.59722 4.18056 6.6875 4.29167C6.6875 4.44444 6.63646 4.57292 6.53438 4.67708C6.43222 4.78125 6.30618 4.83333 6.15625 4.83333C6.00056 4.83333 5.86962 4.78125 5.76344 4.67708C5.65726 4.57292 5.60417 4.44444 5.60417 4.29167C5.59722 4.28472 5.59201 4.28646 5.58854 4.29688C5.58507 4.30729 5.58333 4.31076 5.58333 4.30729C5.58333 4.30382 5.59028 4.30382 5.60417 4.30729C5.61806 4.31076 5.62153 4.30903 5.61458 4.30208C5.47569 4.30208 5.3559 4.25104 5.25521 4.14896C5.15451 4.04681 5.10417 3.92771 5.10417 3.79167C5.10417 3.65278 5.15451 3.53299 5.25521 3.43229C5.3559 3.3316 5.47569 3.28125 5.61458 3.28125C5.74653 3.35764 5.86111 3.43403 5.95833 3.51042C6.05556 3.58681 6.14931 3.67014 6.23958 3.76042ZM5 2.75C4.94667 2.75 4.89465 2.75017 4.84396 2.75052C4.79326 2.75087 4.74083 2.75035 4.68667 2.74896C4.54139 2.7566 4.39931 2.72049 4.26042 2.64062C4.12153 2.56076 4.03472 2.44618 4 2.29688C3.96528 2.14757 3.98611 2.01389 4.0625 1.89583C4.13889 1.77778 4.25267 1.71094 4.40385 1.69531C4.50962 1.6901 4.61059 1.68576 4.70677 1.68229C4.80295 1.67882 4.90069 1.67708 5 1.67708C5.97917 1.67708 6.88368 1.93056 7.71354 2.4375C8.5434 2.94444 9.17059 3.64625 9.5951 4.54292C9.62892 4.61847 9.65451 4.69451 9.67188 4.77104C9.68924 4.84757 9.69792 4.92389 9.69792 5C9.69792 5.07611 9.69097 5.15417 9.67708 5.23417C9.66319 5.31417 9.64236 5.39236 9.61458 5.46875C9.49826 5.68972 9.36504 5.89948 9.2149 6.09802C9.06469 6.29656 8.90278 6.49306 8.72917 6.6875C8.63194 6.79861 8.51042 6.85069 8.36458 6.84375C8.21875 6.83681 8.09375 6.78069 7.98958 6.67542C7.88542 6.57007 7.83681 6.44507 7.84375 6.30042C7.85069 6.15569 7.90278 6.02431 8 5.90625C8.13194 5.76736 8.25125 5.62153 8.35792 5.46875C8.46465 5.31597 8.5641 5.15972 8.65625 5C8.30208 4.30556 7.79861 3.75694 7.14583 3.35417C6.49306 2.95139 5.77778 2.75 5 2.75ZM5 8.32292C4.04861 8.32292 3.1684 8.07465 2.35938 7.57812C1.55035 7.0816 0.919896 6.40906 0.468021 5.56052C0.419896 5.46462 0.387153 5.37142 0.369792 5.28094C0.352431 5.19052 0.34375 5.09677 0.34375 4.99969C0.34375 4.90267 0.352431 4.80556 0.369792 4.70833C0.387153 4.61111 0.420139 4.51736 0.46875 4.42708C0.614583 4.13542 0.787361 3.86813 0.987083 3.62521C1.18688 3.38229 1.40646 3.15306 1.64583 2.9375L0.96875 2.27083C0.871528 2.18056 0.821181 2.07812 0.817708 1.96354C0.814236 1.84896 0.861111 1.74306 0.958333 1.64583C1.05556 1.54861 1.16319 1.5 1.28125 1.5C1.39931 1.5 1.50694 1.54861 1.60417 1.64583L8.19792 8.23958C8.29514 8.33681 8.34201 8.44271 8.33854 8.55729C8.33507 8.67188 8.28819 8.77431 8.19792 8.86458C8.10069 8.96181 7.99479 9.01042 7.88021 9.01042C7.76562 9.01042 7.65972 8.96181 7.5625 8.86458L6.70833 8.01042C6.43472 8.12153 6.15382 8.20139 5.86562 8.25C5.57743 8.29861 5.28889 8.32292 5 8.32292ZM2.41667 3.6875C2.20139 3.88194 2.00347 4.08507 1.82292 4.29688C1.64236 4.50868 1.48611 4.74306 1.35417 5C1.69444 5.70139 2.19271 6.25174 2.84896 6.65104C3.50521 7.05035 4.22222 7.25 5 7.25C5.14729 7.25 5.29347 7.24132 5.43854 7.22396C5.58368 7.2066 5.72569 7.18056 5.86458 7.14583L5.39583 6.67708C5.33333 6.70486 5.26736 6.72396 5.19792 6.73438C5.12847 6.74479 5.0625 6.75 5 6.75C4.51389 6.75 4.10069 6.57986 3.76042 6.23958C3.42014 5.89931 3.25 5.48611 3.25 5C3.25 4.9375 3.25694 4.87153 3.27083 4.80208C3.28472 4.73264 3.29514 4.66667 3.30208 4.60417L2.41667 3.6875Z" fill="white"></path></g></g></svg></div></div></div></div><div hidden="" class="imt-no-events " id="manga-button" style="position: relative; opacity: 0.7;"><div class="imt-manga-button btn-animate" style="transform: translateX(2px);"><div style="position: relative;"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" style="vertical-align: middle;"><path d="M14.8853 4.92364C14.8853 4.92364 16.3905 10.4362 22.6668 4C22.6668 4 20.3381 10.8907 25.3364 10.0843C25.3364 10.0843 22.0563 15.6994 29 18.0599C29 18.0599 22.9934 19.306 21.1617 28C21.1617 28 17.7679 24.54 14.8853 27.3549C14.8853 27.3549 13.3233 23.5724 7.33097 26.27C7.33097 26.27 10.1141 20.6549 4.83179 21.0507C4.83179 21.0507 7.16057 18.8955 3 15.9047C3 15.9047 7.50137 16.1833 6.33697 11.7117C6.33697 11.7117 10.0005 12.3421 8.66576 6.82957C8.65156 6.81491 12.4855 9.80574 14.8853 4.92364Z" fill="#ED6D8F"></path><path d="M20.8599 13.7022C20.885 13.1361 20.9543 12.5713 20.9959 12.0052C21.0337 11.568 20.8107 11.2794 20.3876 11.18C20.0759 11.1013 19.7508 11.0867 19.433 11.137C19.1951 11.1945 18.9542 11.2396 18.7113 11.2721C18.2403 11.3028 17.9973 11.5275 17.9796 11.988C17.977 12.0833 17.9596 12.1777 17.928 12.268C17.3034 13.9102 16.6774 15.5499 16.0503 17.1873C16.0301 17.2401 16.0062 17.2904 15.9671 17.3776C15.7291 16.8975 15.4281 16.4898 15.2745 15.9986C14.8073 14.5152 14.3186 13.033 13.8312 11.5594C13.6826 11.1112 13.3489 10.9344 12.8754 11.0216C12.7889 11.0365 12.7008 11.0398 12.6134 11.0314C12.2241 10.9938 11.8311 11.0404 11.4623 11.1677C11.0946 11.2991 10.9498 11.557 11.0152 11.9254C11.0428 12.0371 11.0643 12.1503 11.0795 12.2643C11.1223 13.1902 11.1777 14.1087 11.2054 15.0321C11.257 16.7992 11.2117 18.5651 11.0858 20.3284C11.0644 20.6354 11.0304 20.9424 11.0228 21.2494C11.0115 21.6092 11.1613 21.7811 11.5266 21.8143C11.9976 21.8573 12.4711 21.8708 12.9421 21.9088C13.0309 21.9201 13.121 21.9003 13.1962 21.8528C13.2714 21.8053 13.3268 21.7334 13.3527 21.6497C13.3996 21.5394 13.4252 21.4216 13.4282 21.3022C13.4295 20.8258 13.4207 20.3493 13.4081 19.8741C13.393 19.3264 13.3917 18.7763 13.3438 18.231C13.2857 17.5839 13.266 16.934 13.2847 16.2847C13.2847 16.2466 13.291 16.2073 13.2985 16.1312C13.3338 16.2024 13.3514 16.2356 13.3665 16.2712C13.9017 17.5228 14.3617 18.8037 14.7443 20.1074C14.7928 20.2421 14.7928 20.3889 14.7443 20.5237C14.6322 20.8196 14.7141 21.037 14.9659 21.1377C15.4445 21.3268 15.9331 21.4926 16.4155 21.6731C16.4865 21.7033 16.566 21.7091 16.6408 21.6895C16.7157 21.6698 16.7815 21.6259 16.8273 21.565C16.9085 21.4643 16.9743 21.3526 17.0225 21.2335C17.0537 21.1374 17.0798 21.0399 17.1006 20.9412C17.3185 20.2425 17.5653 19.5499 17.7517 18.8438C17.9785 17.9723 18.2624 17.1158 18.6018 16.2798C18.6201 16.2439 18.6411 16.2094 18.6647 16.1766C18.6761 16.2319 18.6761 16.254 18.6761 16.2761C18.6345 17.59 18.5955 18.8978 18.5501 20.2056C18.5363 20.5949 18.491 20.9829 18.4809 21.3722C18.4721 21.705 18.6207 21.8708 18.9557 21.9002C19.4355 21.9432 19.9191 21.9592 20.4002 21.9973C20.4888 22.0079 20.5784 21.9875 20.653 21.9399C20.7277 21.8922 20.7827 21.8203 20.8082 21.7369C20.8531 21.6305 20.8766 21.5167 20.8775 21.4017C20.88 20.7668 20.8674 20.132 20.8674 19.4971C20.8662 19.2846 20.8687 19.0722 20.8523 18.8622C20.8158 18.3968 20.7264 17.9314 20.7339 17.4685C20.7515 16.2122 20.8044 14.9572 20.8599 13.7022Z" fill="white"></path></svg></div></div></div><div style="display: flex; align-items: center; flex-direction: row; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" style="display: block; opacity: 0;"><g clip-path="url(#clip0_38845_9816)"><path d="M7 14C5.14348 14 3.36301 13.2625 2.05025 11.9497C0.737498 10.637 0 8.85652 0 7C0 5.14348 0.737498 3.36301 2.05025 2.05025C3.36301 0.737498 5.14348 0 7 0C8.85652 0 10.637 0.737498 11.9497 2.05025C13.2625 3.36301 14 5.14348 14 7C14 8.85652 13.2625 10.637 11.9497 11.9497C10.637 13.2625 8.85652 14 7 14Z" fill="#B1B1B1" fill-opacity="0.4"></path><path d="M6.11754 7.00052L4.18254 5.06452C4.06786 4.94725 4.00406 4.78948 4.00498 4.62546C4.00589 4.46144 4.07145 4.3044 4.18744 4.18841C4.30342 4.07243 4.46046 4.00687 4.62448 4.00595C4.7885 4.00503 4.94627 4.06884 5.06354 4.18352L6.99954 6.11852L8.93554 4.18352C8.99315 4.1246 9.06188 4.07771 9.13774 4.04554C9.2136 4.01337 9.29508 3.99656 9.37748 3.9961C9.45988 3.99564 9.54155 4.01153 9.61777 4.04285C9.69398 4.07417 9.76323 4.1203 9.82149 4.17857C9.87976 4.23683 9.92589 4.30608 9.95721 4.38229C9.98853 4.45851 10.0044 4.54018 10.004 4.62258C10.0035 4.70497 9.98669 4.78646 9.95452 4.86232C9.92235 4.93818 9.87545 5.00691 9.81654 5.06452L7.88154 7.00052L9.81654 8.93652C9.93122 9.05379 9.99502 9.21155 9.99411 9.37557C9.99319 9.5396 9.92763 9.69664 9.81164 9.81262C9.69566 9.9286 9.53862 9.99417 9.3746 9.99508C9.21058 9.996 9.05281 9.9322 8.93554 9.81752L6.99954 7.88252L5.06354 9.81752C5.00593 9.87643 4.93721 9.92333 4.86135 9.9555C4.78549 9.98767 4.704 10.0045 4.6216 10.0049C4.5392 10.0054 4.45753 9.9895 4.38131 9.95818C4.3051 9.92686 4.23585 9.88073 4.17759 9.82247C4.11932 9.7642 4.0732 9.69496 4.04188 9.61874C4.01056 9.54253 3.99467 9.46086 3.99513 9.37846C3.99559 9.29606 4.01239 9.21457 4.04456 9.13871C4.07673 9.06285 4.12363 8.99413 4.18254 8.93652L6.11754 7.00052Z" fill="white"></path></g><defs><clippath id="clip0_38845_9816"><rect width="14" height="14" fill="white"></rect></clippath></defs></svg><div style="position: relative;"><div class="imt-fb-btn right btn-animate  " dir="ltr" style="opacity: 0.7;"><div class=" " style="position: relative; pointer-events: all; display: inline-block;"><div><div class="imt-fb-btn-content"><svg class="imt-fb-logo-img imt-fb-logo-img-big-bg" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14C0 6.26801 6.26801 0 14 0C21.732 0 28 6.26801 28 14C28 21.732 21.732 28 14 28C6.26801 28 0 21.732 0 14Z" fill="#ED6D8F"></path><path d="M7.30921 15.6381C7.53044 15.6381 7.70979 15.8175 7.70979 16.0387V19.0088C7.70979 19.934 8.45993 20.684 9.38526 20.684H11.7557C11.9769 20.684 12.1562 20.8634 12.1562 21.0846V22.152C12.1562 22.3732 11.9769 22.5526 11.7557 22.5526H9.38526C7.42782 22.5526 5.84099 20.966 5.84099 19.0088V16.0387C5.84099 15.8175 6.02034 15.6381 6.24157 15.6381H7.30921ZM18.9876 12.6944C19.1515 12.6944 19.2989 12.7943 19.3597 12.9466L22.9711 22.0036C23.076 22.2667 22.8822 22.5526 22.599 22.5526H21.4672C21.3016 22.5526 21.153 22.4506 21.0934 22.2961L20.2724 20.1673C20.2128 20.0128 20.0643 19.9108 19.8986 19.9108H16.7508C16.5852 19.9108 16.4366 20.0128 16.377 20.1673L15.556 22.2961C15.4964 22.4506 15.3478 22.5526 15.1822 22.5526H14.0504C13.7672 22.5526 13.5734 22.2667 13.6783 22.0036L17.2897 12.9466C17.3505 12.7943 17.4979 12.6944 17.6618 12.6944H18.9876ZM18.5116 15.6017C18.4456 15.4308 18.2038 15.4308 18.1378 15.6017L17.3016 17.7699C17.251 17.9011 17.3478 18.0423 17.4885 18.0423H19.1609C19.3016 18.0423 19.3984 17.9012 19.3478 17.7699L18.5116 15.6017ZM9.69589 5.30028C9.79943 4.8999 10.368 4.89991 10.4715 5.30028L11.1086 7.76368C11.3244 8.59845 11.9396 9.27221 12.7513 9.56299L14.9019 10.3334C15.2559 10.4602 15.2559 10.9608 14.9019 11.0876L12.7513 11.8581C11.9396 12.1489 11.3244 12.8226 11.1086 13.6574L10.4715 16.1208C10.368 16.5212 9.79943 16.5212 9.69589 16.1208L9.05884 13.6574C8.84297 12.8226 8.22786 12.1489 7.41615 11.8581L5.26548 11.0876C4.91151 10.9608 4.91151 10.4602 5.26548 10.3334L7.41615 9.56299C8.22786 9.27221 8.84297 8.59844 9.05884 7.76368L9.69589 5.30028ZM18.0064 6.20485C19.9639 6.20485 21.5507 7.79145 21.5507 9.74861V11.281C21.5507 11.5022 21.3713 11.6816 21.1501 11.6816H20.0825C19.8612 11.6816 19.6819 11.5022 19.6819 11.281V9.74861C19.6819 8.82341 18.9318 8.07338 18.0064 8.07338H14.4343C14.2131 8.07338 14.0337 7.89403 14.0337 7.6728V6.60543C14.0337 6.3842 14.2131 6.20486 14.4343 6.20485H18.0064Z" fill="white"></path></svg></div></div></div></div><div title="关闭悬浮球" class="imt-fb-close-button" style="opacity: 0; pointer-events: none;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><g clip-path="url(#clip0_38845_9816)"><path d="M7 14C5.14348 14 3.36301 13.2625 2.05025 11.9497C0.737498 10.637 0 8.85652 0 7C0 5.14348 0.737498 3.36301 2.05025 2.05025C3.36301 0.737498 5.14348 0 7 0C8.85652 0 10.637 0.737498 11.9497 2.05025C13.2625 3.36301 14 5.14348 14 7C14 8.85652 13.2625 10.637 11.9497 11.9497C10.637 13.2625 8.85652 14 7 14Z" fill="#B1B1B1" fill-opacity="0.4"></path><path d="M6.11754 7.00052L4.18254 5.06452C4.06786 4.94725 4.00406 4.78948 4.00498 4.62546C4.00589 4.46144 4.07145 4.3044 4.18744 4.18841C4.30342 4.07243 4.46046 4.00687 4.62448 4.00595C4.7885 4.00503 4.94627 4.06884 5.06354 4.18352L6.99954 6.11852L8.93554 4.18352C8.99315 4.1246 9.06188 4.07771 9.13774 4.04554C9.2136 4.01337 9.29508 3.99656 9.37748 3.9961C9.45988 3.99564 9.54155 4.01153 9.61777 4.04285C9.69398 4.07417 9.76323 4.1203 9.82149 4.17857C9.87976 4.23683 9.92589 4.30608 9.95721 4.38229C9.98853 4.45851 10.0044 4.54018 10.004 4.62258C10.0035 4.70497 9.98669 4.78646 9.95452 4.86232C9.92235 4.93818 9.87545 5.00691 9.81654 5.06452L7.88154 7.00052L9.81654 8.93652C9.93122 9.05379 9.99502 9.21155 9.99411 9.37557C9.99319 9.5396 9.92763 9.69664 9.81164 9.81262C9.69566 9.9286 9.53862 9.99417 9.3746 9.99508C9.21058 9.996 9.05281 9.9322 8.93554 9.81752L6.99954 7.88252L5.06354 9.81752C5.00593 9.87643 4.93721 9.92333 4.86135 9.9555C4.78549 9.98767 4.704 10.0045 4.6216 10.0049C4.5392 10.0054 4.45753 9.9895 4.38131 9.95818C4.3051 9.92686 4.23585 9.88073 4.17759 9.82247C4.11932 9.7642 4.0732 9.69496 4.04188 9.61874C4.01056 9.54253 3.99467 9.46086 3.99513 9.37846C3.99559 9.29606 4.01239 9.21457 4.04456 9.13871C4.07673 9.06285 4.12363 8.99413 4.18254 8.93652L6.11754 7.00052Z" fill="white"></path></g><defs><clippath id="clip0_38845_9816"><rect width="14" height="14" fill="white"></rect></clippath></defs></svg></div></div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" style="display: none; opacity: 0;"><g clip-path="url(#clip0_38845_9816)"><path d="M7 14C5.14348 14 3.36301 13.2625 2.05025 11.9497C0.737498 10.637 0 8.85652 0 7C0 5.14348 0.737498 3.36301 2.05025 2.05025C3.36301 0.737498 5.14348 0 7 0C8.85652 0 10.637 0.737498 11.9497 2.05025C13.2625 3.36301 14 5.14348 14 7C14 8.85652 13.2625 10.637 11.9497 11.9497C10.637 13.2625 8.85652 14 7 14Z" fill="#B1B1B1" fill-opacity="0.4"></path><path d="M6.11754 7.00052L4.18254 5.06452C4.06786 4.94725 4.00406 4.78948 4.00498 4.62546C4.00589 4.46144 4.07145 4.3044 4.18744 4.18841C4.30342 4.07243 4.46046 4.00687 4.62448 4.00595C4.7885 4.00503 4.94627 4.06884 5.06354 4.18352L6.99954 6.11852L8.93554 4.18352C8.99315 4.1246 9.06188 4.07771 9.13774 4.04554C9.2136 4.01337 9.29508 3.99656 9.37748 3.9961C9.45988 3.99564 9.54155 4.01153 9.61777 4.04285C9.69398 4.07417 9.76323 4.1203 9.82149 4.17857C9.87976 4.23683 9.92589 4.30608 9.95721 4.38229C9.98853 4.45851 10.0044 4.54018 10.004 4.62258C10.0035 4.70497 9.98669 4.78646 9.95452 4.86232C9.92235 4.93818 9.87545 5.00691 9.81654 5.06452L7.88154 7.00052L9.81654 8.93652C9.93122 9.05379 9.99502 9.21155 9.99411 9.37557C9.99319 9.5396 9.92763 9.69664 9.81164 9.81262C9.69566 9.9286 9.53862 9.99417 9.3746 9.99508C9.21058 9.996 9.05281 9.9322 8.93554 9.81752L6.99954 7.88252L5.06354 9.81752C5.00593 9.87643 4.93721 9.92333 4.86135 9.9555C4.78549 9.98767 4.704 10.0045 4.6216 10.0049C4.5392 10.0054 4.45753 9.9895 4.38131 9.95818C4.3051 9.92686 4.23585 9.88073 4.17759 9.82247C4.11932 9.7642 4.0732 9.69496 4.04188 9.61874C4.01056 9.54253 3.99467 9.46086 3.99513 9.37846C3.99559 9.29606 4.01239 9.21457 4.04456 9.13871C4.07673 9.06285 4.12363 8.99413 4.18254 8.93652L6.11754 7.00052Z" fill="white"></path></g><defs><clippath id="clip0_38845_9816"><rect width="14" height="14" fill="white"></rect></clippath></defs></svg></div><div class="btn-animate" style="margin-top: 10px; transform: translateX(60px);"><div class=" btn-animate" style="position: relative; pointer-events: all; display: inline-block;"><div><div class="imt-fb-round-button"><svg class="imt-fb-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" style="width: 24px; height: 24px;"><path d="M17 8.66797H11.375" stroke="#ED6D8F" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12.625 15.332L7 15.332" stroke="#ED6D8F" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.125 17C16.1605 17 17 16.1605 17 15.125C17 14.0895 16.1605 13.25 15.125 13.25C14.0895 13.25 13.25 14.0895 13.25 15.125C13.25 16.1605 14.0895 17 15.125 17Z" stroke="#ED6D8F" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.875 10.75C9.91053 10.75 10.75 9.91053 10.75 8.875C10.75 7.83947 9.91053 7 8.875 7C7.83947 7 7 7.83947 7 8.875C7 9.91053 7.83947 10.75 8.875 10.75Z" stroke="#ED6D8F" stroke-linecap="round" stroke-linejoin="round"></path><rect x="3" y="4" width="18" height="16" rx="1.66667" stroke="#ED6D8F"></rect></svg></div></div></div></div><div class="btn-animate" style="margin-top: 10px; transform: translateX(60px);"><div class=" btn-animate" style="position: relative; pointer-events: all; display: inline-block;"><div><div class="imt-fb-round-button"><svg class="imt-fb-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><mask id="mask0_43829_2633" maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20" style="mask-type: alpha;"><rect width="20" height="20" fill="#D9D9D9"></rect></mask><g mask="url(#mask0_43829_2633)"><path d="M9.99546 12.2609C10.1639 12.2609 10.305 12.2055 10.4188 12.0946C10.5327 11.9838 10.5896 11.8441 10.5896 11.6755C10.5896 11.507 10.5342 11.3659 10.4234 11.2521C10.3124 11.1384 10.1727 11.0815 10.0042 11.0815C9.83574 11.0815 9.69463 11.1369 9.58088 11.2478C9.46699 11.3586 9.41005 11.4982 9.41005 11.6667C9.41005 11.8353 9.46546 11.9765 9.5763 12.0903C9.68727 12.204 9.82699 12.2609 9.99546 12.2609ZM9.99546 10.1936C10.148 10.1936 10.2771 10.1418 10.3828 10.0382C10.4886 9.93443 10.5415 9.80568 10.5415 9.65193V5.20318C10.5415 5.04943 10.49 4.92075 10.3871 4.81713C10.2844 4.71338 10.1567 4.66151 10.0042 4.66151C9.85171 4.66151 9.72261 4.71338 9.61692 4.81713C9.51109 4.92075 9.45817 5.04943 9.45817 5.20318V9.65193C9.45817 9.80568 9.50963 9.93443 9.61255 10.0382C9.71532 10.1418 9.84296 10.1936 9.99546 10.1936ZM5.03192 14.5846L3.55359 16.063C3.34262 16.2739 3.10032 16.3221 2.82671 16.2076C2.55324 16.093 2.4165 15.8864 2.4165 15.5878V3.75776C2.4165 3.38262 2.54602 3.06554 2.80505 2.80651C3.06407 2.54748 3.38116 2.41797 3.7563 2.41797H16.2434C16.6185 2.41797 16.9356 2.54748 17.1946 2.80651C17.4537 3.06554 17.5832 3.38262 17.5832 3.75776V13.2448C17.5832 13.62 17.4537 13.9371 17.1946 14.1961C16.9356 14.4551 16.6185 14.5846 16.2434 14.5846H5.03192ZM4.58317 13.5013H16.2434C16.3075 13.5013 16.3663 13.4746 16.4196 13.4211C16.4731 13.3678 16.4998 13.309 16.4998 13.2448V3.75776C16.4998 3.69359 16.4731 3.63484 16.4196 3.58151C16.3663 3.52804 16.3075 3.5013 16.2434 3.5013H3.7563C3.69213 3.5013 3.63338 3.52804 3.58005 3.58151C3.52657 3.63484 3.49984 3.69359 3.49984 3.75776V14.5928L4.58317 13.5013Z" fill="#ED6D8F"></path></g></svg></div></div></div></div><div hidden="" id="immersive-translate-popup-overlay" class="immersive-translate-popup-overlay"><div class="immersive-translate-popup-wrapper" style="position: fixed; top: 70px; right: 65px;"></div></div></div></div></template></div></html>

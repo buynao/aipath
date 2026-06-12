@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 25 课 · 开源与闭源：大模型版图 — 拓智</title>
+<meta name="description" content="业内说的'开源模型'九成是'开放权重'：给你做好的菜，不给菜谱。一张五维对照表 + 2025 年版图速览 + DeepSeek-R1 时刻 + 选型四问，学会按需选型而不是追榜单。">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* ---------- 本课专属 ---------- */
+.mt-14 { margin-top: 14px; }
+/* 开放程度阶梯 */
+#ladder-svg .lrow text { pointer-events: none; }
+/* 选型方向仪 */
+.qrow { margin-top: 12px; }
+.qrow .qlabel { font-size: 13px; font-weight: 600; color: var(--fg-1); margin-bottom: 6px; }
+.verdict { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+@media (prefers-reduced-motion: no-preference) {
+  #gauge-marker { transition: cx 0.35s ease; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-dot">智</span>拓智</a>
+    <div class="nav-links">
+      <a href="../index.html#path">学习路线</a>
+      <a href="../index.html#usage">怎么学</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container-narrow">
+
+  <header class="lesson-hero">
+    <div class="crumb">
+      <a href="../index.html">课程</a> / <span>第五阶段 · 前沿篇</span> / <span>第 25 课</span>
+    </div>
+    <h1>开源与闭源：大模型版图</h1>
+    <p class="subhead">GPT、Claude、Gemini、Llama、Qwen、DeepSeek……一张地图认清各家路线，学会按需选型。</p>
+    <div class="meta">
+      <span class="pill pill-ink">入门</span>
+      <span class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></span>
+      <span class="footnote">约 20 分钟</span>
+    </div>
+  </header>
+
+  <section class="lsec">
+    <h2>🎯 你将学会</h2>
+    <div class="card goals">
+      <div class="goal-item"><span class="tick">✓</span>识破名字陷阱：业内说的"开源模型"九成其实是"开放权重"—— 给你做好的菜（模型文件），不给菜谱（数据与配方）；真·全开源如 OLMo 是少数派</div>
+      <div class="goal-item"><span class="tick">✓</span>用五个维度对照两条路线：获取方式、数据隐私、能力上限、成本结构、可定制</div>
+      <div class="goal-item"><span class="tick">✓</span>在 2025 年的版图上点名两大阵营：GPT / Claude / Gemini 与 Llama / Qwen / DeepSeek / Mistral 等，并知道 DeepSeek-R1 为什么是分水岭</div>
+      <div class="goal-item"><span class="tick">✓</span>背下选型四问：数据出不出网？预算 OPEX 还是 CAPEX？要不要微调？有没有运维？—— 把问题从"哪个最强"换成"哪个最合适"</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>💡 核心概念：你听到的"开源模型"，多数是"开放权重"</h2>
+    <p class="lead">先正名。开源软件（Linux、Python）的"开源"指<b>源代码全公开</b>：拿到的是菜谱，每一行都能检查，理论上能从头复现。而新闻里的"开源大模型"，九成给你的只是<b>权重文件</b> —— 那几十亿个"旋钮"（第 3 课的权重）训练完成后的最终读数。你能下载、能部署、能微调，但它是一盘<b>做好的菜</b>：训练数据（食材）、训练代码与配方（火候），统统不公开。准确的叫法是<b>开放权重（open weights）</b>。点下面的胶囊，看三档"开放程度"到底差在哪一层。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 一个模型能"开放"到什么程度</span>
+        <span class="demo-hint">点击胶囊切换，看四层组件谁公开、谁上锁</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="ladder-svg" viewBox="0 0 440 312" width="420" aria-label="模型开放程度的四层阶梯：API 入口、权重文件、训练代码与配方、训练数据"></svg>
+        </div>
+        <div class="demo-side">
+          <div class="chips" id="ladder-chips">
+            <button class="chip active" data-key="closed">闭源 API</button>
+            <button class="chip" data-key="open">开放权重</button>
+            <button class="chip" data-key="full">全开源</button>
+          </div>
+          <h4 id="ld-title"></h4>
+          <div class="period" id="ld-period"></div>
+          <p id="ld-desc"></p>
+          <div class="tags" id="ld-tags"></div>
+        </div>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">开放权重 = 给你<span class="hl">做好的菜</span>，不给菜谱</div>
+      <div class="zh">能加热（部署）、能改刀（微调），但厨房不让进。为什么大家都藏菜谱？训练数据既是商业公司最贵的底牌，又埋着版权地雷 —— "开放权重"正是商业利益与开放精神之间的折中。本课从此统一用语：<b>开放权重 vs 闭源 API</b>。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>📖 两条路线，五个维度</h2>
+    <p class="lead">闭源 API 像<b>点外卖</b>：随点随吃、按量付费，但厨房在别人家；开放权重像<b>自己开伙</b>：菜（模型）免费拿，但锅碗瓢盆（GPU）、水电（运维）全得自己置办。五个维度一张表：</p>
+    <div class="card">
+      <table class="match">
+        <thead>
+          <tr><th>维度</th><th>闭源 API</th><th>开放权重</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="be">获取方式</td>
+            <td>注册账号、照文档发请求，几分钟跑通（第 26 课动手）</td>
+            <td class="ex">下载权重文件，部署到自己的 GPU / 服务器（第 27 课动手）</td>
+          </tr>
+          <tr>
+            <td class="be">数据隐私</td>
+            <td>数据必须发送到厂商服务器 ——"出网"</td>
+            <td class="ex">可完全本地运行，数据一步不出门</td>
+          </tr>
+          <tr>
+            <td class="be">能力上限</td>
+            <td>前沿能力通常率先出现在闭源旗舰</td>
+            <td class="ex">紧追，且差距在快速缩小（见下文 R1 时刻）</td>
+          </tr>
+          <tr>
+            <td class="be">成本结构</td>
+            <td>按 token 计费，用多少付多少（OPEX，价格以官网为准）</td>
+            <td class="ex">权重免费，但 GPU、电费、运维人力是真金白银（CAPEX）</td>
+          </tr>
+          <tr>
+            <td class="be">可定制</td>
+            <td>受限：提示词 + 厂商开放的有限微调接口</td>
+            <td class="ex">自由：可微调、可裁剪、可"魔改"到任何形状</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🗺️ 版图速览：谁在哪条线上（截至 2025）</h2>
+    <p class="lead">下面是<b>截至 2025 年的格局快照</b> —— 这个领域更新极快，名单与排位请以各家最新发布为准。一句话记定位，不背跑分。先看闭源三巨头：模型不出门，能力当服务卖。</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">闭源 API · 美国</div>
+        <div class="en">OpenAI <b>GPT</b></div>
+        <div class="zh">ChatGPT 的缔造者，把大模型带进大众视野；对话、多模态、推理产品线最全，至今是行业风向标。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">闭源 API · 美国</div>
+        <div class="en">Anthropic <b>Claude</b></div>
+        <div class="zh">以 AI 安全研究立身，长文本、代码与 Agent 能力是口碑招牌，在工程师群体中粘性极高。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">闭源 API · 美国</div>
+        <div class="en">Google <b>Gemini</b></div>
+        <div class="zh">原生多模态路线，背靠搜索、安卓与办公全家桶 —— 论分发渠道无人能敌。</div>
+      </div>
+    </div>
+    <p class="lead mt-14">再看开放权重阵营：模型文件给你，部署随你 —— 中国力量在这一边格外密集。</p>
+    <div class="use-grid">
+      <div class="card use-card">
+        <div class="label">开放权重 · 美国</div>
+        <div class="en">Meta <b>Llama</b></div>
+        <div class="zh">把"开放权重"变成行业惯例的带头人，衍生模型与工具生态最庞大；注意其许可证带商用条款，并非传统开源协议。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">开放权重 · 中国</div>
+        <div class="en">阿里 <b>Qwen</b></div>
+        <div class="zh">通义千问家族：尺寸谱系最全、迭代最勤的开放权重系列之一，在全球开发者社区的采用量名列前茅。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">开放权重 · 中国</div>
+        <div class="en">DeepSeek <b>深度求索</b></div>
+        <div class="zh">以极致工程效率著称的"性价比之王"，R1 一夜改写了"开放权重永远慢半拍"的叙事（见下一节）。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">开放权重 · 欧洲</div>
+        <div class="en">Mistral <b>米斯特拉尔</b></div>
+        <div class="zh">欧洲的独苗级代表，以"小而高效"起家（MoE 路线的早期推手），开放权重与商业 API 两条腿走路。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">开放权重 · 中国</div>
+        <div class="en">月之暗面 <b>Kimi</b></div>
+        <div class="zh">以超长上下文出圈的明星创业公司，2025 年携 K2 系列加入开放权重阵营。</div>
+      </div>
+      <div class="card use-card">
+        <div class="label">开放权重 · 中国</div>
+        <div class="en">智谱 <b>GLM</b></div>
+        <div class="zh">清华系出身，国内最早一批做中英双语大模型的团队，GLM 系列持续开放迭代。</div>
+      </div>
+    </div>
+    <div class="example mt-14">
+      <div class="en">阵营的边界正在<span class="hl">变模糊</span></div>
+      <div class="zh">闭源三家也各有开放权重支线：Google 有 Gemma，OpenAI 也在 2025 年放出了 gpt-oss。两条路线是一道光谱而非两座阵地 —— 同一家公司常常两头下注。</div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚡ DeepSeek-R1 时刻：差距可以被急剧压缩</h2>
+    <p class="lead">第 23 课讲过推理模型：让模型先"打草稿"再回答，用测试时算力换智力。2025 年 1 月，这条故事线在开放权重阵营炸响 —— DeepSeek-R1 以开放权重 + 宽松许可发布，推理能力直逼当时最强的闭源推理模型，而训练投入远低于外界对"前沿模型"的想象（具体数字有争议，"便宜得多"是共识）。一周之内它冲上多国应用商店榜首，甚至引发美股科技股震荡。震动的原因不是它"最强"，而是它证明了：<b>闭源领先的护城河，可能比所有人以为的浅得多。</b></p>
+    <div class="contrast">
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-ink">R1 之前的默认假设</span></div>
+        <div class="big">开放权重永远落后闭源<span class="gap">一到两年</span></div>
+        <p class="note">前沿能力先出现在闭源旗舰，开放阵营追着复刻。于是选型逻辑很粗暴：要最强，就得交钱、交数据。</p>
+      </div>
+      <div class="card contrast-card">
+        <div class="tag"><span class="pill pill-sage">R1 之后的新共识</span></div>
+        <div class="big">差距可以被<span class="hl">急剧压缩</span></div>
+        <p class="note">两条路线的距离不再是"代差"，而是会被随时拉近的"身位"。选型问题从"哪个最强"，变成"哪个最合适"—— 下一节给你四问。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 选型四问：拨一拨方向仪</h2>
+    <p class="lead">真实项目里不需要背榜单，只需要回答四个问题。点右侧选项，看方向仪往哪边摆 —— 注意第一问是<b>一票否决项</b>：数据不能出网时，其余三问只决定"怎么落地"，不再决定"选哪边"。</p>
+    <div class="card demo">
+      <div class="demo-head">
+        <span class="demo-title">🎛️ 交互演示 · 开放权重还是闭源 API？</span>
+        <span class="demo-hint">点右侧选项，方向仪实时摆动</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-stage">
+          <svg id="gauge-svg" viewBox="0 0 440 330" width="420" aria-label="选型方向仪：四个问题的答案共同决定指针偏向闭源 API 还是开放权重">
+            <text x="30" y="28" font-size="13" font-weight="700" fill="var(--sky)">闭源 API</text>
+            <text x="410" y="28" text-anchor="end" font-size="13" font-weight="700" fill="var(--sage)">开放权重</text>
+            <line x1="30" y1="58" x2="410" y2="58" stroke="var(--hairline-strong)" stroke-width="6" stroke-linecap="round"/>
+            <line x1="220" y1="46" x2="220" y2="70" stroke="var(--fg-2)" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <circle id="gauge-marker" cx="50" cy="58" r="12" fill="var(--sky)" stroke="var(--bg-0)" stroke-width="2.5"/>
+            <g id="q-inds"></g>
+          </svg>
+        </div>
+        <div class="demo-side">
+          <div class="qrow">
+            <div class="qlabel">① 数据能出网吗？</div>
+            <div class="chips" data-q="0">
+              <button class="chip active" data-i="0">能出网</button>
+              <button class="chip" data-i="1">不能，太敏感</button>
+            </div>
+          </div>
+          <div class="qrow">
+            <div class="qlabel">② 预算偏好哪种？</div>
+            <div class="chips" data-q="1">
+              <button class="chip active" data-i="0">按量付费 OPEX</button>
+              <button class="chip" data-i="1">一次性投入 CAPEX</button>
+            </div>
+          </div>
+          <div class="qrow">
+            <div class="qlabel">③ 需要深度定制吗？</div>
+            <div class="chips" data-q="2">
+              <button class="chip active" data-i="0">提示词就够</button>
+              <button class="chip" data-i="1">要微调魔改</button>
+            </div>
+          </div>
+          <div class="qrow">
+            <div class="qlabel">④ 团队有运维能力吗？</div>
+            <div class="chips" data-q="3">
+              <button class="chip active" data-i="0">没人管 GPU</button>
+              <button class="chip" data-i="1">有 GPU 团队</button>
+            </div>
+          </div>
+          <div class="verdict">
+            <h4 id="dv-title"></h4>
+            <p id="dv-desc"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>🎛️ 场景练手：六个项目分一分</h2>
+    <p class="lead">用刚才的四问给下面 6 个真实场景做判断：更适合<b>开放权重</b>还是<b>闭源 API</b>？先自己过一遍四问，再点卡片对答案。</p>
+    <div class="flip-grid" id="flip-grid">
+      <button class="flip-card">
+        <div class="fc-q">医院要做内部病历问答系统</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">开放权重</span>
+          <div class="why">病历是最敏感的数据，"不能出网"一票否决 —— 本地部署的开放权重（或厂商私有化方案）是唯一方向。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">给自己装一个个人写作助手</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sky">闭源 API</span>
+          <div class="why">没有隐私硬约束、用量小，按 token 付费几乎零门槛；为写作文自购 GPU，连电费都不划算。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">创业公司要在两周内做出 MVP</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sky">闭源 API</span>
+          <div class="why">第一要务是验证需求：OPEX 起步最快、零运维。等跑通了、用量大了，再回头评估迁移到开放权重省钱。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">科研团队要复现一个模型实验</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">开放权重（最好全开源）</span>
+          <div class="why">研究要检查、修改、复跑模型内部，闭源 API 是黑箱；若连训练过程都要复现，只有 OLMo 这类全开源才够。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">车间里的离线工业质检设备</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">开放权重</span>
+          <div class="why">产线常常物理断网，API 根本调不通 —— 只能把模型搬进本地设备，这正是开放权重的主场。</div>
+        </div>
+      </button>
+      <button class="flip-card">
+        <div class="fc-q">电商公司想微调一个"懂自家话术"的客服模型</div>
+        <div class="fc-tap">▸ 点击揭晓</div>
+        <div class="fc-a">
+          <span class="pill pill-sage">开放权重</span>
+          <div class="why">要把自家话术"焊进"模型，需要深度微调甚至改结构 —— 闭源只开放有限微调接口，自由度不够。</div>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>⚠️ 常见误区</h2>
+    <div class="card alert-card row-list">
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">开源（开放权重）= 免费</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">权重不要钱，但跑模型的 GPU、电费、运维人力都是钱 —— 用量大才划算</span></div>
+        </div>
+        <p class="why"><b>病因：</b>把"下载免费"当成"使用免费"，这是手机 App 时代的思维惯性。大模型是吞电的重资产：小用量时，按 token 付费的闭源 API 往往反而更便宜；开放权重省下的是按量付费，换来的是固定投入 —— 翻盘点在"量"。</p>
+      </div>
+      <div class="alert-item">
+        <div class="wrong-right">
+          <div class="wr-line bad"><span class="wr-mark">✗</span><span class="wr-text">闭源一定更强，开放权重是"将就用"</span></div>
+          <div class="wr-line good"><span class="wr-mark">✓</span><span class="wr-text">分场景：前沿推理常由闭源旗舰领跑，但大量日常任务开放权重早已绰绰有余</span></div>
+        </div>
+        <p class="why"><b>病因：</b>只盯着排行榜头部。翻译、摘要、客服、内部问答这类任务根本用不到"最强"，够用、合规、便宜才是赢家 —— R1 时刻更证明头部差距随时可能被压缩。选型看的是"任务够不够用 + 约束满不满足"，不是榜单第一名。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec">
+    <h2>✍️ 小练习</h2>
+    <div class="card quiz row-list">
+      <div class="quiz-item">
+        <div class="q">1. 同事说："DeepSeek 权重能免费下载，所以换成它就一分钱不用花了。"这句话哪里对、哪里错？</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>"免费下载"对，"一分钱不花"错。</b>自己跑模型要 GPU（买或租）、电费、运维人力；用量小的时候，按 token 付费的 API 往往更省。另一条路是用第三方平台托管的 DeepSeek API —— 那又回到了按量付费，只是单价可能更低。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">2. 一家律所想做内部合同问答工具：材料高度敏感，团队没有任何 GPU 运维经验。用四问走一遍，给出方向。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans">第一问就触发<b>一票否决</b>：合同不能出网 → 方向锁定可本地 / 私有化部署的开放权重。"没有运维"不改变方向，只改变落地方式：买厂商的私有化一体机、托管私有云，或外包部署 —— 先用小尺寸模型试点，验证效果再加码。</div>
+        </details>
+      </div>
+      <div class="quiz-item">
+        <div class="q">3. 填空：前沿能力通常在 <span class="blank"></span> 率先出现；但大量日常任务，<span class="blank"></span> 已经绰绰有余。所以选型问题从"哪个最强"变成了 <span class="blank"></span>。</div>
+        <details>
+          <summary>查看答案</summary>
+          <div class="ans"><b>闭源旗舰 / 开放权重 / "哪个最合适"。</b>这也是 DeepSeek-R1 时刻的最大遗产：差距能被急剧压缩，盲目追"最强"不如老老实实回答四问。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a class="card prev" href="24-mcp-ecosystem.html">
+      <div class="dir">← 上一课</div>
+      <div class="name">24 MCP 与 AI 工程生态</div>
+    </a>
+    <a class="card next" href="26-first-api-call.html">
+      <div class="dir">下一课 →</div>
+      <div class="name">26 第一次调用 API：30 行代码的聊天机器人</div>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span>拓智 · AI Path —— 为中文学习者设计的 AI 入门课</span>
+    <span>learn-x · 持续更新中</span>
+  </div>
+</footer>
+
+<script>
+/* ---------- 演示一：开放程度阶梯 ---------- */
+(function () {
+  const ROWS = [
+    'API / 产品入口',
+    '权重文件（模型本体）',
+    '训练代码与配方',
+    '训练数据（语料）',
+  ];
+  const MODES = {
+    closed: {
+      name: '闭源 API',
+      period: '只租能力，不卖模型',
+      desc: '你拿到的是服务，不是模型。模型住在厂商的服务器里，你通过 API 租用它的能力 —— 像点外卖：菜很好吃，但厨房不让进，菜也不让带走。',
+      tags: ['GPT', 'Claude', 'Gemini'],
+      states: [
+        ['yes', '提供 —— 按 token 计费'],
+        ['no', '不提供'],
+        ['no', '不提供'],
+        ['no', '不提供'],
+      ],
+    },
+    open: {
+      name: '开放权重',
+      period: '业内说的"开源模型"九成在这一档',
+      desc: '你拿到模型文件本身，可以搬回自己机器上自由部署、微调 —— 像买到了做好的菜：能加热、能改刀，但菜谱不给，没法从头复现。',
+      tags: ['Llama', 'Qwen', 'DeepSeek', 'Mistral'],
+      states: [
+        ['yes', '官方或第三方托管均有'],
+        ['yes', '可自由下载、本地部署'],
+        ['half', '多数只给技术报告，细节留白'],
+        ['no', '极少公开 —— 数据是底牌'],
+      ],
+    },
+    full: {
+      name: '全开源',
+      period: '少数派，多由科研机构推动',
+      desc: '权重、训练代码、训练数据全公开，理论上可以从零复现整个模型 —— 这才是软件意义上的"开源"。图的是可研究、可审计，目前以科研驱动为主。',
+      tags: ['OLMo（Allen AI）'],
+      states: [
+        ['yes', '提供'],
+        ['yes', '公开'],
+        ['yes', '全流程公开'],
+        ['yes', '语料公开可查'],
+      ],
+    },
+  };
+  const GLYPH = { yes: '✓', half: '◐', no: '✕' };
+  const ICON  = { yes: 'var(--sage)', half: 'var(--amber)', no: 'var(--fg-2)' };
+  const FILL  = { yes: 'var(--sage-bg)', half: 'var(--amber-bg)', no: 'var(--bg-inset)' };
+  const EDGE  = { yes: 'var(--sage)', half: 'var(--amber)', no: 'var(--hairline-strong)' };
+
+  const svg = document.getElementById('ladder-svg');
+  const chips = document.querySelectorAll('#ladder-chips .chip');
+
+  function render(key) {
+    const m = MODES[key];
+    let s = '';
+    for (let i = 0; i < ROWS.length; i++) {
+      const st = m.states[i][0], note = m.states[i][1];
+      const y = 8 + i * 76, cy = y + 32;
+      const fgMain = st === 'no' ? 'var(--fg-2)' : 'var(--fg-0)';
+      s += '<g class="lrow">' +
+        '<rect x="14" y="' + y + '" width="412" height="64" rx="10" fill="' + FILL[st] + '" stroke="' + EDGE[st] + '" stroke-width="1.2"/>' +
+        '<circle cx="44" cy="' + cy + '" r="13" fill="none" stroke="' + ICON[st] + '" stroke-width="1.6"/>' +
+        '<text x="44" y="' + (cy + 4.5) + '" text-anchor="middle" font-size="13" font-weight="700" fill="' + ICON[st] + '">' + GLYPH[st] + '</text>' +
+        '<text x="70" y="' + (cy - 5) + '" font-size="13.5" font-weight="700" fill="' + fgMain + '">' + ROWS[i] + '</text>' +
+        '<text x="70" y="' + (cy + 15) + '" font-size="11.5" fill="var(--fg-1)">' + note + '</text>' +
+        '</g>';
+    }
+    svg.innerHTML = s;
+    chips.forEach(c => c.classList.toggle('active', c.dataset.key === key));
+    document.getElementById('ld-title').textContent = m.name;
+    document.getElementById('ld-period').textContent = m.period;
+    document.getElementById('ld-desc').textContent = m.desc;
+    document.getElementById('ld-tags').innerHTML =
+      m.tags.map(t => '<span class="pill pill-ink">' + t + '</span>').join('');
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => render(c.dataset.key)));
+  render('closed');
+})();
+
+/* ---------- 演示二：选型方向仪 ---------- */
+(function () {
+  const QS = [
+    { name: '① 数据', opts: [
+      { t: '能出网', side: 'closed' },
+      { t: '不能出网（敏感）', side: 'open', hard: true } ] },
+    { name: '② 预算', opts: [
+      { t: '按量付费 OPEX', side: 'closed' },
+      { t: '一次性投入 CAPEX', side: 'open' } ] },
+    { name: '③ 定制', opts: [
+      { t: '提示词就够', side: 'closed' },
+      { t: '要微调魔改', side: 'open' } ] },
+    { name: '④ 运维', opts: [
+      { t: '没人管 GPU', side: 'closed' },
+      { t: '有 GPU 团队', side: 'open' } ] },
+  ];
+  const chosen = [0, 0, 0, 0];
+  const marker = document.getElementById('gauge-marker');
+  const inds = document.getElementById('q-inds');
+
+  function update() {
+    let open = 0, closed = 0, hard = false;
+    let s = '';
+    for (let i = 0; i < QS.length; i++) {
+      const o = QS[i].opts[chosen[i]];
+      if (o.side === 'open') open++; else closed++;
+      if (o.hard) hard = true;
+      const y = 102 + i * 56;
+      let pull, color;
+      if (o.hard) { pull = '一票否决 ▶ 必须可本地部署'; color = 'var(--terracotta)'; }
+      else if (o.side === 'open') { pull = '▶ 偏开放权重'; color = 'var(--sage)'; }
+      else { pull = '◀ 偏闭源 API'; color = 'var(--sky)'; }
+      s += '<g>' +
+        '<rect x="20" y="' + y + '" width="400" height="40" rx="8" fill="var(--bg-inset)" stroke="var(--hairline)"/>' +
+        '<text x="36" y="' + (y + 25) + '" font-size="12.5" font-weight="600" fill="var(--fg-0)">' + QS[i].name + '：' + o.t + '</text>' +
+        '<text x="404" y="' + (y + 25) + '" text-anchor="end" font-size="12.5" font-weight="700" fill="' + color + '">' + pull + '</text>' +
+        '</g>';
+    }
+    inds.innerHTML = s;
+
+    /* 指针位置与颜色 */
+    let cx, fill;
+    if (hard) { cx = 392; fill = 'var(--terracotta)'; }
+    else {
+      cx = 220 + (open - closed) / 4 * 170;
+      fill = open > closed ? 'var(--sage)' : open < closed ? 'var(--sky)' : 'var(--amber)';
+    }
+    marker.setAttribute('cx', cx);
+    marker.setAttribute('fill', fill);
+
+    /* 结论 */
+    const title = document.getElementById('dv-title');
+    const desc = document.getElementById('dv-desc');
+    if (hard) {
+      title.textContent = '建议：开放权重（本地 / 私有化部署）';
+      desc.textContent = '"数据不能出网"是硬约束，直接否决所有公网 API。其余三问只影响怎么落地：没有运维就买私有化一体机或外包部署，有运维就自建。';
+    } else if (open > closed) {
+      title.textContent = '建议：倾向开放权重（' + open + ' : ' + closed + '）';
+      desc.textContent = '多数信号指向自己部署：投入是固定成本，量越大越划算。建议先用小尺寸模型试点，验证效果再加码硬件。';
+    } else if (closed > open) {
+      title.textContent = '建议：倾向闭源 API（' + closed + ' : ' + open + '）';
+      desc.textContent = '按 token 付费、零运维、随开随用 —— 对当前条件是最省心的起点。等用量上来或需求变深，再回来重做一遍四问。';
+    } else {
+      title.textContent = '建议：五五开，先 API 起步';
+      desc.textContent = '信号打平时，工程界的常见做法是：先用闭源 API 最快跑通业务，少绑定厂商私有功能、留好切换余地，后续随用量与需求再迁移。';
+    }
+  }
+
+  document.querySelectorAll('.qrow .chips').forEach(group => {
+    const q = Number(group.dataset.q);
+    group.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        chosen[q] = Number(chip.dataset.i);
+        group.querySelectorAll('.chip').forEach(c =>
+          c.classList.toggle('active', c === chip));
+        update();
+      });
+    });
+  });
+  update();
+})();
+
+/* ---------- 场景练手：点击揭晓 ---------- */
+document.querySelectorAll('#flip-grid .flip-card').forEach(card => {
+  card.addEventListener('click', () => card.classList.add('revealed'));
+});
+</script>
+
+</body>
+</html>
