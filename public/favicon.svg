@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- AI Path 站点图标：墨色圆角方块上的「AI」+ 琥珀色打字光标（呼应首页 LLM hero） -->
+  <style>
+    .bg { fill: #1A1410; }
+    .fg { stroke: #FAF6EC; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #FAF6EC; }
+      .fg { stroke: #1A1410; }
+    }
+  </style>
+  <rect class="bg" width="64" height="64" rx="14" />
+  <g class="fg" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 14 44 L 23 20 L 32 44" />
+    <path d="M 17.4 35.5 L 28.6 35.5" />
+    <path d="M 41 20 L 41 44" />
+  </g>
+  <rect x="47" y="37.5" width="7" height="9" rx="2" fill="#BA8651" />
+</svg>
