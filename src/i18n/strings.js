@@ -23,7 +23,7 @@ export const META = {
 // UI 框架文案字典
 export const UI = {
   zh: {
-    nav: { idea: '设计理念', path: '学习路线', usage: '怎么学', github: '在 GitHub 查看源码', switchLang: '切换到英文' },
+    nav: { idea: '设计理念', path: '学习路线', usage: '怎么学', github: '在 GitHub 查看源码', switchLang: '切换到英文', menu: '菜单' },
     footer: { tagline: 'AI Path · AI 通识 —— 为中文学习者设计的 AI 入门课', updating: '持续更新中' },
     pager: {
       prevDir: '← 上一课',
@@ -107,7 +107,7 @@ export const UI = {
   },
 
   en: {
-    nav: { idea: 'Philosophy', path: 'Learning Path', usage: 'How to Learn', github: 'View source on GitHub', switchLang: 'Switch to Chinese' },
+    nav: { idea: 'Philosophy', path: 'Learning Path', usage: 'How to Learn', github: 'View source on GitHub', switchLang: 'Switch to Chinese', menu: 'Menu' },
     footer: { tagline: 'AI Path · AI Literacy — A Visual Intro to AI for Beginners', updating: 'Continuously updated' },
     pager: {
       prevDir: '← Previous',

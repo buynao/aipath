@@ -109,9 +109,9 @@ h3 { font-size: 17px; font-weight: 600; }
 }
 .nav-inner {
   max-width: 1080px; margin: 0 auto; padding: 0 24px;
-  height: 60px; display: flex; align-items: center; justify-content: space-between;
+  height: 60px; display: flex; align-items: center; gap: 22px;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--fg-0); text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; font-weight: 700; font-size: 17px; color: var(--fg-0); text-decoration: none; }
 .brand-dot {
   width: 26px; height: 26px; border-radius: var(--r-sm);
   background: var(--accent); color: var(--on-accent);
@@ -121,6 +121,7 @@ h3 { font-size: 17px; font-weight: 600; }
 .nav-links { display: flex; gap: 22px; align-items: center; }
 .nav-links a { font-size: 15px; font-weight: 500; color: var(--fg-1); text-decoration: none; }
 .nav-links a:hover { color: var(--fg-0); }
+.nav-actions { display: flex; align-items: center; gap: 16px; }
 .nav-github { display: inline-flex; align-items: center; color: var(--fg-1); transition: color 0.18s ease, transform 0.18s ease; }
 .nav-github:hover { color: var(--fg-0); transform: translateY(-1px); }
 .nav-lang {
@@ -130,6 +131,30 @@ h3 { font-size: 17px; font-weight: 600; }
   transition: color 0.18s ease, border-color 0.18s ease;
 }
 .nav-lang:hover { color: var(--fg-0); border-color: var(--fg-1); }
+/* 汉堡按钮：仅窄屏出现 */
+.nav-burger {
+  display: none; align-items: center; justify-content: center;
+  background: none; border: none; padding: 4px; margin: -4px -4px -4px 0;
+  color: var(--fg-1); cursor: pointer; transition: color 0.18s ease;
+}
+.nav-burger:hover { color: var(--fg-0); }
+
+/* ---------- 窄屏：三个区块链接收进汉堡抽屉 ---------- */
+@media (max-width: 700px) {
+  .nav-burger { display: inline-flex; }
+  .nav-links {
+    position: absolute; top: 60px; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 0;
+    padding: 6px 24px 14px;
+    background: var(--nav-glass);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--hairline);
+    display: none;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links a { font-size: 16px; padding: 13px 2px; border-bottom: 1px solid var(--hairline); }
+  .nav-links a:last-child { border-bottom: none; }
+}
 
 /* ---------- 按钮：主 CTA = 墨色胶囊；次级 = ghost-glass ---------- */
 .btn {
