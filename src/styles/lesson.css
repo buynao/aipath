@@ -4,7 +4,7 @@
         use-grid / example / alert / quiz / demo）→ pager
    ============================================================ */
 
-.lesson-hero { padding: 56px 0 40px; }
+.lesson-hero { padding: 56px 0 4px; }
 .crumb { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--fg-2); margin-bottom: 20px; flex-wrap: wrap; }
 .crumb a { color: var(--fg-2); text-decoration: none; }
 .crumb a:hover { color: var(--fg-0); }

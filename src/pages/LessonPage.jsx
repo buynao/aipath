@@ -101,7 +101,7 @@ export default function LessonPage({ lesson }) {
         )}
 
         {Body ? (
-          <Suspense fallback={<div className="footnote" style={{ marginTop: 32 }}>{t.lesson.loading}</div>}>
+          <Suspense key={lesson.slug} fallback={<div className="footnote" style={{ marginTop: 32 }}>{t.lesson.loading}</div>}>
             <Body />
           </Suspense>
         ) : (
