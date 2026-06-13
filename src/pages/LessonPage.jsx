@@ -96,11 +96,6 @@ export default function LessonPage({ lesson }) {
           </div>
         </header>
 
-        {/* 课程正文暂仅中文：英文界面下提示一句，正文回退中文 */}
-        {Body && lang === 'en' && (
-          <p className="footnote" style={{ marginTop: 24 }}>{t.lesson.enBodyNotice}</p>
-        )}
-
         {Body ? (
           <LessonErrorBoundary
             resetKey={lesson.slug}
