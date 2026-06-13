@@ -65,9 +65,9 @@ export default function LessonPage({ lesson }) {
   const t = useUI()
   const title = pick(lesson.title, lang)
 
-  // 课程页标题带课名：「<课题> | AI Path」，随语言切换更新（在 LangProvider 的全站 title 之后覆写）
+  // 课程页标题带课名：「<课题> | AI 通识」（英文界面回退 AI Path），随语言切换更新（在 LangProvider 的全站 title 之后覆写）
   useEffect(() => {
-    const base = (META[lang] || META.zh).title.split(' · ')[0] // "AI Path"
+    const base = (META[lang] || META.zh).title.split(' · ')[0] // zh→"AI 通识" / en→"AI Path"
     document.title = `${title} | ${base}`
     return () => { document.title = (META[lang] || META.zh).title }
   }, [lang, title])

@@ -1,5 +1,5 @@
 // ============================================================
-// AI Path · i18n 文案字典（中英双语）
+// AI 通识 · i18n 文案字典（中英双语）
 // 纯数据，无 React 依赖 —— 供 LangContext 的 useUI() 与副作用消费。
 // 课程正文（L01~L30）暂不在此，本字典只覆盖 UI 框架与首页文案。
 // ============================================================
@@ -8,7 +8,7 @@
 export const META = {
   zh: {
     lang: 'zh-CN',
-    title: 'AI Path · AI 通识 —— 为中文学习者设计的 AI 入门课',
+    title: 'AI 通识 · 为中文学习者设计的 AI 入门课',
     description:
       '零基础 AI 课程：用可视化与交互演示讲透 AI 核心原理，6 个阶段 30 课，从神经网络直觉到亲手构建 AI 应用，专为中文学习者设计。',
   },
@@ -24,7 +24,7 @@ export const META = {
 export const UI = {
   zh: {
     nav: { idea: '设计理念', path: '学习路线', usage: '怎么学', github: '在 GitHub 查看源码', switchLang: '切换到英文', menu: '菜单' },
-    footer: { tagline: 'AI Path · AI 通识 —— 为中文学习者设计的 AI 入门课', updating: '持续更新中' },
+    footer: { tagline: 'AI 通识 · 为中文学习者设计的 AI 入门课', updating: '持续更新中' },
     pager: {
       prevDir: '← 上一课',
       nextDir: '下一课 →',

@@ -1,4 +1,4 @@
-# AI Path · AI 通识
+# AI 通识 · 为中文学习者设计的 AI 入门课
 
 [English](./README.md) · **中文**
 
