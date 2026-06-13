@@ -580,7 +580,11 @@ function BaseModelDemo({ c }) {
   )
 }
 
-const Fill = () => <span className="fill" />
+// 函数声明（而非箭头常量）会被提升到模块顶部，
+// 以便文件开头的双语内容层 C 在初始化时即可引用 <Fill />，避免 TDZ 报错导致整课懒加载卡死。
+function Fill() {
+  return <span className="fill" />
+}
 
 export default function L12() {
   const { lang } = useLang()
