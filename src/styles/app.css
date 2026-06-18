@@ -827,6 +827,9 @@ table.match.map td:first-child { font-weight: 600; font-size: 15px; color: var(-
 @media (prefers-reduced-motion: reduce) { .err-fill { transition: none; } }
 
 /* ---------- L03：神经元演示 ---------- */
+.act-diagram-card { padding: 16px 18px; overflow: hidden; margin-bottom: 14px; }
+#act-bend-svg { width: 100%; height: auto; display: block; }
+#act-bend-svg text { user-select: none; }
 #neuron-svg text { font-family: inherit; }
 #neuron-svg .w-edge { transition: stroke-width 0.18s ease, stroke 0.18s ease, stroke-opacity 0.18s ease; }
 #neuron-svg .soft { transition: fill 0.22s ease, stroke 0.22s ease, fill-opacity 0.18s ease, opacity 0.25s ease; }
@@ -836,6 +839,8 @@ table.match.map td:first-child { font-weight: 600; font-size: 15px; color: var(-
 .neu-readout .ro-line { color: var(--fg-1); }
 .neu-readout .ro-line b { color: var(--fg-0); }
 .neu-verdict { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
+.source-note { margin-top: 8px; }
+.source-note a { color: var(--fg-0); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { #neuron-svg * { transition: none !important; } }
 
 /* ---------- L04：3D 下山演示 ---------- */
