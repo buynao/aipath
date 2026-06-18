@@ -1,0 +1,4 @@
+interface:
+  display_name: "Course Content Review"
+  short_description: "Review course copy for Chinese learners"
+  default_prompt: "Use $course-content-review to review this lesson for Chinese learner readability and diagram opportunities."
