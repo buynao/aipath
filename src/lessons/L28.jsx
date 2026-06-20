@@ -158,7 +158,7 @@ while True:
     seg2H: <>循环调 embedding API，向量存进 list</>,
     seg2P: <>embedding 是与对话 API 并列的另一种接口：发进去一段文字，返回一串数字坐标 —— <b>意思相近的文字，坐标就相近</b>（第 8 课的全部家底）。最后一行把每块都向量化，按顺序存进 list：<b>这个 list 就是你的"向量库"</b>，几千块以内毫无压力。两个工程提示：embedding 按 token 计费但比对话便宜得多（具体以官网为准）；整库向量化要花几分钟，算完用 json 存盘，下次直接读 —— 别每次启动都重算。</>,
     seg3H: <>余弦相似度：四行纯 Python</>,
-    seg3P: <>第 8 课的口诀在这里落地：<b>语义即坐标，夹角越小越相似</b>。这个函数比的是两个向量的"方向"是否一致 —— 完全同向得 1，毫不相干趋近 0。用 numpy 可以写成一行（np.dot(a, b) / (norm(a) * norm(b))），向量数据库里那些花哨的索引，最终算的也是同一个数。四行代码，整条管线的数学就到顶了。</>,
+    seg3P: <>第 8 课的口诀在这里落地：<b>语义即坐标，夹角越小越相似</b>—— 这把"量夹角"的尺子叫余弦相似度（cosine similarity）。这个函数比的是两个向量的"方向"是否一致 —— 完全同向得 1，毫不相干趋近 0。用 numpy 可以写成一行（np.dot(a, b) / (norm(a) * norm(b))），向量数据库里那些花哨的索引，最终算的也是同一个数。四行代码，整条管线的数学就到顶了。</>,
     seg4H: <>检索：问题变向量，排序取 top-k</>,
     seg4P: <>检索的全部秘密：<b>问题向量化 → 逐块打分 → 排序 → 取前 k</b>。注意第一行的铁律 —— 问题必须用<b>建库时同一个</b> embedding 模型变向量，两套坐标系之间没法比距离。这里是朴素的暴力遍历，几百几千块文档，Python 排序绰绰有余；向量数据库做的本质就是这件事，只是用专门的索引让它在上亿向量上依然毫秒级返回。</>,
     seg5H: <>拼 prompt，调对话 API</>,
@@ -173,6 +173,18 @@ while True:
     debugTitle: '🛠️ 翻车诊室：三种症状，先打印再 debug',
     debugLead: <>RAG 是一条管线，debug 第一原则是<b>先定位坏在哪一段，再动手修</b>。而定位最强的工具不是什么观测平台，是 print()。下面三种最常见的翻车现场 —— 先想想你会先查哪里，再点开看套路：</>,
 
+    upgradeSourceNote: (
+      <>
+        挑选 embedding 模型可参考公开评测基准 MTEB，Muennighoff 等 2022{' '}
+        <a href="https://arxiv.org/abs/2210.07316" target="_blank" rel="noreferrer">
+          MTEB: Massive Text Embedding Benchmark
+        </a>
+        （含中文榜单，但最终仍以你自己的真实问答实测为准）。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '你已经能搭出一个会查私有文档的 RAG 应用了。但“跑起来”和“能上线”之间还差关键一步：你怎么知道它答得对、答得好？改了切块参数到底是变好还是变坏？上线之后又有哪些安全红线不能碰？下一课讲评估与安全：怎么给模型“体检”、幻觉/提示注入/越狱这些坑怎么防——上线之前必须补的最后一课。',
+    bridgeSteps: ['RAG 应用搭好了', '但怎么知道它答得好？', '上线前还有安全红线', '下一课：评估与安全'],
     upgradeTitle: '🚀 升级路线：60 行如何长成生产系统',
     upgradeP: <>今天这 60 行就是所有生产级 RAG 的骨架 —— 后面的一切都是<b>换零件，不是换图纸</b>。文档涨到几十万块、list 遍历变慢？把 list 换成 <b>pgvector</b> 或专用向量数据库，它们只是把"存向量 + 找最近邻"做快、做稳。检索想再准一截？加<b>重排序（rerank）</b>：先粗捞 50 块，再用更强的模型精排出最好的 5 块；或者上<b>混合检索</b>：向量负责"按意思找"、关键词负责"按字面找"，互补短板。无论装备升到哪一级，流程仍然是你刚刚亲手写完的这六步。</>,
 
@@ -360,6 +372,18 @@ while True:
     debugTitle: '🛠️ Failure Clinic: three symptoms, print before you debug',
     debugLead: <>RAG is a pipeline, and the first principle of debugging is to <b>locate which section is broken before you touch anything</b>. And the strongest tool for locating it isn\'t some observability platform — it\'s print(). Here are the three most common failure scenes — think about where you\'d look first, then open them to see the routine:</>,
 
+    upgradeSourceNote: (
+      <>
+        For choosing an embedding model, see the public benchmark MTEB, Muennighoff et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2210.07316" target="_blank" rel="noreferrer">
+          MTEB: Massive Text Embedding Benchmark
+        </a>
+        (it includes a Chinese leaderboard, but go by testing on your own real Q&A in the end).
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 29',
+    bridgeLead: 'You can now build a RAG app that queries private documents. But between "it runs" and "it can ship" lies a crucial step: how do you know it answers correctly and well? When you tweak the chunking parameters, did it actually get better or worse? And what safety red lines must you not cross in production? The next lesson covers evaluation and safety: how to give a model a "checkup," and how to guard against hallucination, prompt injection, and jailbreaks — the last lesson you must take before shipping.',
+    bridgeSteps: ['RAG app is built', 'But how good are its answers?', 'Safety red lines before launch', 'Next: Evaluation & Safety'],
     upgradeTitle: '🚀 The Upgrade Path: how 60 lines grow into a production system',
     upgradeP: <>Today\'s 60 lines are the skeleton of every production-grade RAG — everything that follows is <b>swapping parts, not changing the blueprint</b>. Documents grow to hundreds of thousands of chunks and the list scan slows down? Swap the list for <b>pgvector</b> or a dedicated vector database; they just make "store vectors + find nearest neighbors" fast and robust. Want retrieval a notch more accurate? Add <b>reranking</b>: scoop up 50 chunks coarsely first, then use a stronger model to finely rank out the best 5; or go <b>hybrid retrieval</b>: vectors handle "find by meaning," keywords handle "find by literal text," each covering the other\'s weakness. No matter how far the gear is upgraded, the flow is still these six steps you just wrote by hand.</>,
 
@@ -640,6 +664,7 @@ export default function L28() {
 
       <Lsec title={c.upgradeTitle}>
         <p>{c.upgradeP}</p>
+        <p className="footnote source-note">{c.upgradeSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.pitfallsTitle}>
@@ -663,6 +688,20 @@ export default function L28() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
