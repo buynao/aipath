@@ -131,6 +131,15 @@ const C = {
     ],
     matchAfter: '但“翻到对的那页”说着轻巧：文档怎么存，才能按“意思”翻？“对的那页”由谁判定？翻出来之后塞进哪里？下一节把整条流水线拆开看。',
 
+    conceptSourceNote: (
+      <>
+        RAG 这一范式由 Facebook AI 的 Lewis 等 2020 提出{' '}
+        <a href="https://arxiv.org/abs/2005.11401" target="_blank" rel="noreferrer">
+          Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+        </a>
+        。
+      </>
+    ),
     twoPhaseTitle: '📖 两阶段拆透：先建库（离线），再问答（在线）',
     twoPhaseLead: 'RAG 不是某个新模型，而是一条流水线 —— 准确说是两条：一条离线，建库时跑一次就好；一条在线，每次提问都从头跑一遍。分开看，每一步都不神秘。',
     phase1Tag: '阶段一 · 建库（离线，只做一次）',
@@ -163,7 +172,7 @@ const C = {
     failTitle: '🔧 工程师视角：三种翻车现场',
     failLead: '流程图上的 RAG 人人会画，线上跑得稳的 RAG 凤毛麟角 —— 差距全在失败模式里。下面三种翻车现场，做 RAG 的工程师每天都在修：',
     fails: [
-      { en: <>现场一 · 检索不准：<span className="hl">用户和文档不说同一种话</span>。用户问「电脑坏了找谁修？」，文档写的是「IT 设备故障请通过工单系统报修」—— 关键词一个都对不上。</>, zh: <>语义检索正是为此而生：「电脑坏了」和「设备故障报修」在向量空间里是近邻，<b>按意思能找到、按字面找不到</b>。但它也不万能 —— 在产品型号、人名、编号这类“字面必须精确”的查询上，语义检索反而常输给关键词搜索，所以成熟系统多用<b>混合检索</b>（语义＋关键词各跑一遍再合并排序）。记住这条因果链：<b>检索拿错了页，后面的模型再强，也只能照着错页答。</b></> },
+      { en: <>现场一 · 检索不准：<span className="hl">用户和文档不说同一种话</span>。用户问「电脑坏了找谁修？」，文档写的是「IT 设备故障请通过工单系统报修」—— 关键词一个都对不上。</>, zh: <>语义检索正是为此而生：「电脑坏了」和「设备故障报修」在向量空间里是近邻，<b>按意思能找到、按字面找不到</b>。但它也不万能 —— 在产品型号、人名、编号这类“字面必须精确”的查询上，语义检索反而常输给关键词搜索，所以成熟系统多用<b>混合检索（hybrid search）</b>（语义＋关键词各跑一遍再合并排序）。记住这条因果链：<b>检索拿错了页，后面的模型再强，也只能照着错页答。</b></> },
       { en: <>现场二 · 切块切碎语义：<span className="hl">一句话被拦腰截断</span>。原文是「年假 10 天（注：仅适用于工作满 5 年的员工）」，切块恰好从括号前断开 —— 检索只命中前半块，机器人自信回答「年假 10 天」。</>, zh: <>块是检索的最小单位，<b>切坏了，后面神仙难救</b>。三种常见病：句子被拦腰截断（如上）、限定条件和正文被切散、表格被切成无意义碎片。对策很朴素：按标题和段落边界切、相邻块留重叠、关键文档人工抽查切块结果 —— 不优雅，却是 RAG 工程里性价比最高的活。</> },
       { en: <>现场三 · 模型无视小抄：<span className="hl">片段就在窗里，它照样编</span>。片段明明写着「本产品不支持 Windows 7」，模型却热情回答「支持的，安装方法是……」。</>, zh: <>预训练的统计惯性（第 12 课）有时会压过窗内的事实；片段里没有答案时，模型也倾向于“友好地编一个”而不是认错。对策：系统提示写死「只根据资料回答，资料里没有就明说」、要求逐条标出处、把 temperature 调低（第 14 课）。但这些只能压低概率，<b>不能归零</b> —— 这正是出处必须可点开核查的原因。</> },
     ],
@@ -178,6 +187,9 @@ const C = {
       { bad: '上了 RAG 就不会幻觉了，回答还带引用，可以放心抄', good: '检索错页、片段不全时照样编 —— 引用机制不是消灭幻觉，是让你能核查', why: <><b>病因：</b>把 RAG 当成了“幻觉杀毒软件”。它确实能压低幻觉 —— 因为给了模型可抄的材料 —— 但管线三段各有翻车方式：检索拿错页、切块丢了限定条件、模型无视小抄按旧知识作答。出处的真正价值是<b>可验证</b>：拿到带引用的回答，顺着出处点开原文核对一眼，永远胜过盲信任何 AI —— 这也是 RAG 比微调多给你的那份安全带，记得系上。</> },
     ],
 
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: 'RAG 让模型“读得到”自家文档，但它本质还是在被动读资料、组织文字。如果用户问的是“今天北京天气怎样”“把这笔订单退掉”——答案不在任何文档里，而在一个需要实时调用的接口或动作里，RAG 也无能为力。下一课讲 Function Calling：教模型在合适的时候主动“伸手”调用外部工具，从“会说”跨到“会做”。',
+    bridgeSteps: ['RAG：给模型外挂知识', '但它只会读资料、组织文字', '有些答案要靠实时动作', '下一课：Function Calling'],
     quizTitle: '✍️ 小练习',
     quiz: [
       { q: '1. 公司今天上调了差旅报销标准。一个用 RAG 的客服机器人和一个把旧制度微调进参数的机器人，各自要做什么才能答对新标准？大概要多久？', a: <><b>RAG：</b>更新报销制度文档、重建（或增量更新）该文档的索引即可，<b>分钟级</b>生效 —— 模型本身不用碰。<b>微调：</b>要重新整理训练数据、再训练一轮、做回归测试防止“学新忘旧”，<b>天级起步</b>且需要专业团队。这正是“知识注入选 RAG”的第一笔账：知识会变，参数难改，文档好换。</> },
@@ -282,6 +294,15 @@ const C = {
     ],
     matchAfter: 'But “flip to the right page” is easier said than done: how do you store documents so they can be flipped by “meaning”? Who decides which is “the right page”? Where does it go after being flipped to? The next section takes the whole pipeline apart.',
 
+    conceptSourceNote: (
+      <>
+        The RAG paradigm was introduced by Facebook AI's Lewis et al. 2020,{' '}
+        <a href="https://arxiv.org/abs/2005.11401" target="_blank" rel="noreferrer">
+          Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+        </a>
+        .
+      </>
+    ),
     twoPhaseTitle: '📖 Two stages dissected: build the store first (offline), then answer (online)',
     twoPhaseLead: 'RAG isn’t some new model but a pipeline — two pipelines, to be precise: one offline, run once when building the store; one online, run from scratch on every question. Seen separately, every step is unmysterious.',
     phase1Tag: 'Stage 1 · Build the store (offline, done once)',
@@ -329,6 +350,9 @@ const C = {
       { bad: 'With RAG there are no more hallucinations, the answers even come with citations, so I can copy them with peace of mind', good: 'It still makes things up when retrieval hits the wrong page or the snippet is incomplete — the citation mechanism doesn’t eliminate hallucination, it lets you verify', why: <><b>Cause:</b> treating RAG as “hallucination antivirus.” It does lower hallucination — because it gives the model material to copy from — but each of the pipeline’s three segments has its own way of failing: retrieval grabs the wrong page, chunking loses the qualifying condition, the model ignores the cheat sheet and answers from old knowledge. The real value of sources is that they’re <b>verifiable</b>: with a cited answer in hand, following the source to glance at the original always beats blindly trusting any AI — this is the extra seatbelt RAG gives you over fine-tuning; remember to buckle up.</> },
     ],
 
+    bridgeTitle: '➡️ How This Leads to Lesson 19',
+    bridgeLead: 'RAG lets the model "read" your own documents, but at heart it\'s still passively reading material and organizing words. If a user asks "what\'s the weather in Beijing today" or "cancel this order" — the answer isn\'t in any document, but in an API or action that must be called in real time, and RAG can\'t help. The next lesson covers Function Calling: teaching the model to reach out and call external tools at the right moment, crossing from "talking" to "doing."',
+    bridgeSteps: ['RAG: bolt knowledge onto the model', 'But it only reads & organizes text', 'Some answers need real-time action', 'Next: Function Calling'],
     quizTitle: '✍️ Quick Quiz',
     quiz: [
       { q: '1. The company raised its travel-reimbursement standard today. What must a RAG-based support bot and a bot that fine-tuned the old policy into its parameters each do to answer the new standard correctly? And roughly how long does it take?', a: <><b>RAG:</b> just update the expense-policy document and rebuild (or incrementally update) that document’s index — effective in <b>minutes</b>; the model itself isn’t touched. <b>Fine-tuning:</b> you must re-prepare training data, run another round of training, and do regression testing to prevent “learning the new and forgetting the old” — <b>days at a minimum</b>, and it needs a specialist team. This is exactly the first account of “pick RAG for knowledge injection”: knowledge changes, parameters are hard to change, documents are easy to swap.</> },
@@ -516,6 +540,7 @@ export default function L18() {
           </table>
         </div>
         <p className="lead mt14">{c.matchAfter}</p>
+        <p className="footnote source-note">{c.conceptSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.twoPhaseTitle} lead={c.twoPhaseLead}>
@@ -584,6 +609,20 @@ export default function L18() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
