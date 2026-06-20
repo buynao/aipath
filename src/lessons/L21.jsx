@@ -33,7 +33,7 @@ const C = {
     ],
 
     conceptTitle: '💡 核心概念：它学的不是画画，是“修复”',
-    conceptLead: '看到 AI 画图，所有人的第一反应都是“它学会了绘画”。错。它学会的事小得多、也怪得多 —— 但正是这件小事，重复几十次之后就变成了魔法。',
+    conceptLead: '看到 AI 画图，所有人的第一反应都是“它学会了绘画”。错。扩散模型（diffusion model）学会的事小得多、也怪得多 —— 但正是这件小事，重复几十次之后就变成了魔法。',
     contrastTag1: '直觉印象',
     contrastBig1: <>学“怎么画”<span className="gap"> · </span>从空白画布起笔</>,
     contrastNote1: '想象 AI 像画家一样：先打底稿，再勾线、上色 —— 一笔一笔把画“画”出来。听起来合理，但完全不是这么回事。',
@@ -54,9 +54,9 @@ const C = {
     navTitle: '🧭 文字怎么控制画面：每一步都有人指路',
     navLead: '光会去噪，只能从噪声里浮现出“随便一张图”。要让它画“一只戴贝雷帽的橘猫”，需要把你的文字变成每一步去噪的导航。',
     navSteps: [
-      <><b>文字变向量。</b>你的描述先经过一个<b>文本编码器</b>，变成一串数字向量 —— 还记得第 8 课吗？向量就是机器能比较、能计算的“语义坐标”，“橘猫”和“贝雷帽”的含义都被编了码。</>,
+      <><b>文字变向量。</b>你的描述先经过一个<b>文本编码器（text encoder）</b>，变成一串数字向量 —— 还记得第 8 课吗？向量就是机器能比较、能计算的“语义坐标”，“橘猫”和“贝雷帽”的含义都被编了码。</>,
       <><b>每步去噪时指路。</b>这串向量作为<b>条件</b>，在每一步去噪时都喂给去噪器，把去噪的方向“掰”向符合描述的图像区域：同样是擦掉噪声，往“有橘猫的那类图”的方向擦。文字不画画，文字只导航。</>,
-      <><b>CFG：听话程度的旋钮。</b>引导强度（CFG）决定模型多大程度服从你的文字：拧大更听话、更贴题，但拧过头容易颜色过饱和、画面发“塑料”—— 像把导航音量开到最大，司机紧张得开不好车。</>,
+      <><b>CFG：听话程度的旋钮。</b>引导强度（CFG，Classifier-Free Guidance）决定模型多大程度服从你的文字：拧大更听话、更贴题，但拧过头容易颜色过饱和、画面发“塑料”—— 像把导航音量开到最大，司机紧张得开不好车。</>,
     ],
     latentPara: <><b>顺带一段：潜空间 —— 在草图上构思，最后再上色放大。</b>直接在像素上做扩散太贵：一张 1024×1024 的图有上百万个像素，几十步去噪每步都得全算一遍。Stable Diffusion 的聪明做法是先用一个压缩器把图压进小得多的<b>潜空间</b>（latent space），全部几十步扩散都在这张“小草图”上进行，最后一步才解码放大回像素 —— 就像画家先在小稿上构思布局，定稿后才上色放大，省下的算力是数量级的。它的论文名就叫“潜在扩散”（Latent Diffusion）。</>,
     routeCards: [
@@ -65,6 +65,26 @@ const C = {
       { label: '复习钩子', en: <>呼应<b>第 8 课</b></>, zh: <>文本编码器输出的向量，正是第 8 课讲过的嵌入。同一个零件，在文生图里换了个岗位：从“表示词义”变成“给去噪导航”。</> },
     ],
 
+    navSourceNote: (
+      <>
+        现代扩散模型的奠基工作是 Ho 等 2020{' '}
+        <a href="https://arxiv.org/abs/2006.11239" target="_blank" rel="noreferrer">
+          Denoising Diffusion Probabilistic Models（DDPM）
+        </a>
+        ；潜空间扩散（Stable Diffusion 的底层）见 Rombach 等 2022{' '}
+        <a href="https://arxiv.org/abs/2112.10752" target="_blank" rel="noreferrer">
+          High-Resolution Image Synthesis with Latent Diffusion Models
+        </a>
+        ；CFG 见 Ho 与 Salimans 2022{' '}
+        <a href="https://arxiv.org/abs/2207.12598" target="_blank" rel="noreferrer">
+          Classifier-Free Diffusion Guidance
+        </a>
+        。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '这一课里藏着一个关键零件：文本编码器把你的文字变成向量，再去给画面“指路”。换句话说，文字和图像被放进了同一套“语义坐标系”，才能互相对话。把这个思路推广开 —— 让一个模型同时看懂图、文、音，靠的正是同一招：把不同模态都编码成模型能比较的向量。下一课讲多模态，看视觉编码器怎么和语言模型“接驳”，让 AI 看图说话、听声辨意。',
+    bridgeSteps: ['文字编码成向量来导航', '文字与图像共享语义空间', '推广到图 / 文 / 音', '下一课：多模态'],
     demoTitle: '🎛️ 交互演示：从雪花里擦出一幅画',
     demoLead: '下面是原理示意（不是真模型）：我们程序化地画一张目标图，再用“目标与噪声按比例混合、噪声幅度随步数衰减”模拟去噪观感。拖动滑块，或点「自动播放」看整个过程 —— 注意画面是怎么先定大色块、再浮现轮廓、最后才清晰的。',
 
@@ -147,9 +167,9 @@ const C = {
     navTitle: '🧭 How Text Controls the Image: Someone Gives Directions at Every Step',
     navLead: 'Mere denoising can only make "some random image" emerge from the noise. To make it draw "an orange cat in a beret," you need to turn your text into navigation for each denoising step.',
     navSteps: [
-      <><b>Text becomes a vector.</b> Your description first passes through a <b>text encoder</b> and turns into a string of number vectors — remember Lesson 8? A vector is the "semantic coordinate" a machine can compare and compute with; the meanings of "orange cat" and "beret" are both encoded.</>,
+      <><b>Text becomes a vector.</b> Your description first passes through a <b>text encoder</b> (文本编码器) and turns into a string of number vectors — remember Lesson 8? A vector is the "semantic coordinate" a machine can compare and compute with; the meanings of "orange cat" and "beret" are both encoded.</>,
       <><b>Give directions at every denoising step.</b> This vector serves as a <b>condition</b>, fed to the denoiser at each denoising step, "bending" the denoising direction toward image regions that match the description: still erasing noise, but erasing toward "the kind of images with an orange cat." Text doesn’t paint; text only navigates.</>,
-      <><b>CFG: the obedience knob.</b> Guidance strength (CFG) decides how much the model obeys your text: crank it up and it’s more obedient, more on-topic, but overdo it and colors easily oversaturate and the image turns "plastic" — like turning the navigation volume to max, the driver gets so tense they can’t drive well.</>,
+      <><b>CFG: the obedience knob.</b> Guidance strength (CFG, Classifier-Free Guidance) decides how much the model obeys your text: crank it up and it’s more obedient, more on-topic, but overdo it and colors easily oversaturate and the image turns "plastic" — like turning the navigation volume to max, the driver gets so tense they can’t drive well.</>,
     ],
     latentPara: <><b>An aside: the latent space — sketch out the idea, then color and scale up at the end.</b> Doing diffusion directly on pixels is too expensive: a 1024×1024 image has millions of pixels, and dozens of denoising steps each have to compute them all. Stable Diffusion’s clever move is to first use a compressor to squeeze the image into a far smaller <b>latent space</b>, run all dozens of diffusion steps on this "little sketch," and only at the last step decode and scale it back up to pixels — just as a painter first composes the layout on a small study, then colors and scales it up once finalized, saving compute by orders of magnitude. Its paper is literally titled "Latent Diffusion."</>,
     routeCards: [
@@ -158,6 +178,26 @@ const C = {
       { label: 'Review hook', en: <>echoes <b>Lesson 8</b></>, zh: <>The vector output by the text encoder is exactly the embedding covered in Lesson 8. The same part, given a new job in text-to-image: from "representing word meaning" to "navigating the denoising."</> },
     ],
 
+    navSourceNote: (
+      <>
+        The foundation of modern diffusion models is Ho et al. 2020,{' '}
+        <a href="https://arxiv.org/abs/2006.11239" target="_blank" rel="noreferrer">
+          Denoising Diffusion Probabilistic Models (DDPM)
+        </a>
+        ; latent-space diffusion (the basis of Stable Diffusion) is Rombach et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2112.10752" target="_blank" rel="noreferrer">
+          High-Resolution Image Synthesis with Latent Diffusion Models
+        </a>
+        ; CFG is Ho & Salimans 2022,{' '}
+        <a href="https://arxiv.org/abs/2207.12598" target="_blank" rel="noreferrer">
+          Classifier-Free Diffusion Guidance
+        </a>
+        .
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 22',
+    bridgeLead: 'This lesson hides a key part: the text encoder turns your words into a vector that then "gives directions" to the image. In other words, text and image are placed in the same "semantic coordinate system" so they can talk to each other. Generalize that idea — making one model understand images, text, and audio at once relies on the very same trick: encode every modality into vectors the model can compare. The next lesson covers multimodality, showing how a vision encoder "docks" with a language model so AI can describe pictures and make sense of sound.',
+    bridgeSteps: ['Text encoded to a vector to navigate', 'Text & image share a semantic space', 'Generalize to image / text / audio', 'Next: Multimodality'],
     demoTitle: '🎛️ Interactive Demo: Erase an Image Out of the Snowstorm',
     demoLead: 'Below is an illustration of the principle (not a real model): we programmatically draw a target image, then simulate the feel of denoising by "blending target and noise in proportion, with the noise amplitude decaying with the step count." Drag the slider, or click "Auto-play" to watch the whole process — notice how the image first sets large color blocks, then the outline emerges, and only at the end does it become clear.',
 
@@ -369,6 +409,7 @@ export default function L21() {
             <div className="card use-card" key={i}><div className="label">{r.label}</div><div className="en">{r.en}</div><div className="zh">{r.zh}</div></div>
           ))}
         </div>
+        <p className="footnote source-note">{c.navSourceNote}</p>
       </Lsec>
 
       <Lsec
@@ -396,6 +437,20 @@ export default function L21() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
