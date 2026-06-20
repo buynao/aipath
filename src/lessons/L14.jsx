@@ -76,7 +76,7 @@ const C = {
     formulaZh: <>全课唯一的式子，三个零件全是熟人：<b>原始分数</b>，模型给每个候选词打的“看好程度”（第 10 课叫 logits）；<b>÷ T</b>，温度做的唯一动作 —— 一步除法；<b>softmax</b>，把任意一串分数压成总和 100% 的概率（第 10 课讲过）。没有新数学，只是在老流程里插了一步除法。</>,
     softmaxPara: <>为什么一步除法就能改变“性格”？关键在 softmax 的脾气：它对<b>分数差</b>极其敏感 —— 分数差稍微拉大，概率差就被成倍放大。拿真实数字说话：场景里「好」比「怪」高 3.8 分，softmax 端出的概率比约为 45 : 1。把 T 调到 0.5，所有分数除以 0.5 等于翻倍，差距变成 7.6 分，概率比骤增到约 2000 : 1 ——「怪」彻底出局，模型趋向“每步必选第一名”的<b>贪心模式</b>。反过来把 T 调到 2，分数全体减半，差距缩成 1.9 分，概率比缩到约 7 : 1 —— 冷门词翻身，怪话开始登场。</>,
     tempCards: [
-      { label: <>T &lt; 1 · 降温</>, en: <>强者<b>愈强</b></>, zh: <>分数差被放大，第一名碾压全场。T 趋近 0 就是贪心：每步必选最高分，同样输入几乎同样输出 —— 稳，但呆。</> },
+      { label: <>T &lt; 1 · 降温</>, en: <>强者<b>愈强</b></>, zh: <>分数差被放大，第一名碾压全场。T 趋近 0 就是贪心（greedy）：每步必选最高分，同样输入几乎同样输出 —— 稳，但呆。</> },
       { label: <>T = 1 · 不动</>, en: <>原样<b>输出</b></>, zh: <>分数原封不动交给 softmax，端出的概率表就是模型的“原始判断”—— 不加戏，也不收敛。</> },
       { label: <>T &gt; 1 · 升温</>, en: <>冷门<b>翻身</b></>, zh: <>分数差被抹平，概率趋向“人人有份”。T 极大时接近均匀抽签 —— 鲜活，但随时口吐怪词。</> },
     ],
@@ -108,6 +108,18 @@ const C = {
     pipelinePara: <>这正是 top-p 后来居上、成为多数系统默认的原因：它不数人头，而是看把握 —— 模型有把握时收紧候选，没把握时放宽候选。实际系统里，温度和 top-p 几乎总是搭着用，完整流水线四步：<b>调形状（温度）→ 剪长尾（top-p）→ 幸存的词重新归一化 → 抽签</b>。两颗旋钮分管两件事：温度管“敢不敢冒险”，top-p 管“底线在哪”。常见做法是温度按任务调，top-p 固定在 0.9 ~ 1.0 附近小动 —— 各家 API 的默认值与推荐组合不一样，动手前以官方文档为准。</>,
     limitPara: '截断也有它的局限：它防得住“明显的胡话词”，防不住“流畅的错话”。一句概率很高、语法完美的错误陈述，能轻松穿过所有截断 —— 这就是后面第 29 课要讲的“幻觉”：截断管得住怪词，管不住一本正经的胡说。',
 
+    cutSourceNote: (
+      <>
+        top-p（核采样）以及“贪心解码会让长文退化、复读”的现象，出自 Holtzman 等 2019{' '}
+        <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noreferrer">
+          The Curious Case of Neural Text Degeneration
+        </a>
+        。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '到这里，“大模型篇”的内部机制——分词、预训练、对齐、采样——基本拼齐了。但有个更大的问题一直没问：为什么非要把模型堆得这么大？参数、数据、算力同时翻十倍，能力到底怎么变？下一课讲 Scaling Laws 与涌现，解释“大力出奇迹”背后那条惊人平滑的曲线，以及模型“突然学会”新本领的神秘瞬间。',
+    bridgeSteps: ['机制已拼齐（含采样）', '为什么要堆这么大？', '参数 / 数据 / 算力一起放大', '下一课：Scaling Laws 与涌现'],
     demoSecTitle: '🎛️ 交互演示：亲手拧一拧温度旋钮',
     demoSecLead: '理论齐了，上手验证。建议按顺序做三个实验：① 把 T 拉到 0.1，连点十次「采样」—— 几乎次次都是「好」；② 拉到 2.0 再连点 ——「怪」「糟糕」开始出没；③ 保持高温，切换 top-k / top-p —— 看被截掉的柱子变灰，再调温度，观察 top-p 的圈子如何自动伸缩。',
 
@@ -249,6 +261,18 @@ const C = {
     pipelinePara: <>This is exactly why top-p came from behind to become the default in most systems: it doesn't count heads, it gauges confidence — tightening candidates when the model is confident, widening them when it isn't. In real systems temperature and top-p are almost always used together, a full four-step pipeline: <b>reshape (temperature) → trim the tail (top-p) → renormalize the survivors → draw</b>. The two knobs handle two things: temperature governs "how bold to be," top-p governs "where the floor is." A common practice is to tune temperature by task and keep top-p nudged around 0.9 ~ 1.0 — each API's defaults and recommended combinations differ, so check the official docs before you start.</>,
     limitPara: 'Truncation has its limits too: it stops "obvious nonsense words" but not "fluent falsehoods." A high-probability, grammatically perfect false statement sails right through any truncation — this is the "hallucination" covered later in Lesson 29: truncation can control odd words, but not earnest nonsense.',
 
+    cutSourceNote: (
+      <>
+        top-p (nucleus sampling) and the finding that "greedy decoding makes long text degenerate and repeat" come from Holtzman et al. 2019,{' '}
+        <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noreferrer">
+          The Curious Case of Neural Text Degeneration
+        </a>
+        .
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 15',
+    bridgeLead: 'With this, the inner machinery of the "large models" stage — tokenization, pretraining, alignment, sampling — is basically assembled. But a bigger question has gone unasked: why pile the model up so large in the first place? When parameters, data, and compute all scale 10×, how exactly does capability change? The next lesson covers scaling laws and emergence, explaining the astonishingly smooth curve behind "bigger is smarter" and the mysterious moments when a model "suddenly learns" a new skill.',
+    bridgeSteps: ['Machinery assembled (incl. sampling)', 'Why build it this big?', 'Scale params / data / compute together', 'Next: Scaling Laws & Emergence'],
     demoSecTitle: '🎛️ Interactive: turn the temperature knob yourself',
     demoSecLead: 'The theory is in place; time to verify hands-on. Try three experiments in order: ① pull T to 0.1 and click "Sample" ten times — almost always "nice"; ② pull it to 2.0 and click again — "weird" and "awful" start showing up; ③ keep it hot and switch top-k / top-p — watch the truncated bars turn gray, then adjust temperature and observe how the top-p circle stretches and shrinks on its own.',
 
@@ -491,6 +515,7 @@ export default function L14() {
         </div>
         <p className="lead mt14">{c.pipelinePara}</p>
         <p className="lead">{c.limitPara}</p>
+        <p className="footnote source-note">{c.cutSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.demoSecTitle} lead={c.demoSecLead}>
@@ -524,6 +549,20 @@ export default function L14() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
