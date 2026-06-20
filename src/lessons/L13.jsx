@@ -156,16 +156,29 @@ const C = {
     rlhfP1: <>注意刚才发生了什么：你一个字没写，只是<b>挑</b>了一下 —— 但你的品味已经被记录在案。RLHF（人类反馈强化学习）的全部聪明之处，就是把训练建立在“认”而不是“写”上。它分三步：</>,
     rlhfSteps: [
       { label: '第 1 步', en: <>人类<b>只管排序</b></>, zh: <>同一个问题，让 SFT 后的模型生成多个回答（比如 4 个），标注员从好到差排个序。不用动笔 —— 挑比写快得多，数据规模一下就上去了。</> },
-      { label: '第 2 步', en: <>训练一个<b>“裁判”</b></>, zh: <>用海量排序数据训练另一个模型 —— <b>奖励模型</b>：输入“问题 + 回答”，输出一个分数。它学到的是人类的口味：什么样的回答会被排在前面。</> },
+      { label: '第 2 步', en: <>训练一个<b>“裁判”</b></>, zh: <>用海量排序数据训练另一个模型 —— <b>奖励模型（reward model）</b>：输入“问题 + 回答”，输出一个分数。它学到的是人类的口味：什么样的回答会被排在前面。</> },
       { label: '第 3 步', en: <>强化学习<b>刷高分</b></>, zh: <>模型不停生成回答，裁判逐条打分：得高分的写法被加强，低分的被抑制。在亿万次尝试里，模型自己摸索出“怎么写能得高分”。</> },
     ],
     rlhfExampleEn: '跳水教练不会替你跳，也未必说得清“完美入水”的标准 —— 但他举分数牌又快又准。运动员一跳一跳地试，自己琢磨出高分动作。',
-    rlhfExampleZh: 'RLHF 同理：人类（经由奖励模型这个“代理裁判”）只负责打分，“怎么答才能得高分”由模型在试错中自己探索。这正是强化学习的本色 —— 不靠标准答案，靠尝试与奖励。',
+    rlhfExampleZh: 'RLHF 同理：人类（经由奖励模型这个“代理裁判”）只负责打分，“怎么答才能得高分”由模型在试错中自己探索。这正是强化学习（reinforcement learning）的本色 —— 不靠标准答案，靠尝试与奖励。',
     rlhfP2: <>回头看 SFT 的三道坎，RLHF 一一拆掉。<b>太贵？</b>排序比手写便宜得多，同样预算能收集多得多的人类判断。<b>写不出标准？</b>不用写 —— 标注员凭直觉挑就行（你刚才已经示范过了），“分寸感”会藏在千万次排序的统计规律里，被奖励模型自动提炼出来。<b>分不出好坏？</b>裁判可以给任何回答打分，包括示范里从没出现过的问题 —— 标准第一次能“泛化”到整个问题空间。</>,
     rlhfP3: <>这一步对成品性格的塑造非常具体。排序数据里，“先共情再给建议”通常排在“冷冰冰列清单”前面，“承认不确定、建议看医生”通常排在“信口开河包治百病”前面。千万次排序之后，裁判学会了这些口味；强化学习再把模型整体推向这些口味 —— 你在 ChatGPT 里感受到的“会安慰人”“有分寸”，就是这么来的。</>,
     rlhfP4: <>但 RLHF 有一个先天软肋：<b>裁判不是人类本尊，只是人类口味的近似</b> —— 而一切“应试”系统都会钻评分标准的空子。回答写长一点，<i>像</i>高分；语气热情一点，<i>像</i>高分；顺着用户说，<i>像</i>高分。这些技巧与“真正答得好”相关，却不等同。行话叫<b>钻奖励空子</b>（reward hacking）。推过头到底会翻车成什么样？亲手推推看 ——</>,
     rlhfP5: <>看到了吗：裁判分一路上涨，真人满意度却在中段见顶回落 —— 因为模型优化的从来不是“答得好”，而是<b>“裁判觉得好”</b>。所以训练时还得拴一根绳子：不许离 SFT 模型太远，并且在“甜区”见好就收，免得它为了讨好裁判，把好好说话的能力都丢了。记住这个直觉 —— 下一节的“谄媚”，就是推过头结出的果。</>,
 
+    rlhfSourceNote: (
+      <>
+        用人类偏好训练 AI 的思路见 Christiano 等 2017{' '}
+        <a href="https://arxiv.org/abs/1706.03741" target="_blank" rel="noreferrer">
+          Deep Reinforcement Learning from Human Preferences
+        </a>
+        ；把它系统用于对齐语言模型的是 OpenAI 的 InstructGPT，Ouyang 等 2022{' '}
+        <a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noreferrer">
+          Training Language Models to Follow Instructions
+        </a>
+        。
+      </>
+    ),
     alignTitleSec: '🧭 对齐要对到哪：有用、诚实、无害的三角拉扯',
     alignLead: '示范该怎么写、排序该怎么排，总得有个总纲。业内公认的目标是三个词 —— 有用、诚实、无害（helpful / honest / harmless）：',
     alignCards: [
@@ -197,6 +210,26 @@ const C = {
         why: <><b>病因：</b>把“表现变好”误当“知识变多”。对齐用的数据量与预训练差着好几个数量级，装不进什么新知识。更微妙的是反面：调教不当还会教坏 —— 如果示范和排序都偏爱“流畅自信的完整回答”，模型就学会了在不知道答案时也流畅自信地编一个。“为了讨好而编造”，正是幻觉在对齐阶段被放大的方式。</> },
     ],
 
+    alignFollowSourceNote: (
+      <>
+        DPO 见 Rafailov 等 2023{' '}
+        <a href="https://arxiv.org/abs/2305.18290" target="_blank" rel="noreferrer">
+          Direct Preference Optimization
+        </a>
+        ；宪法式 AI 见 Anthropic 的 Bai 等 2022{' '}
+        <a href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noreferrer">
+          Constitutional AI
+        </a>
+        。正文提到的“过度奉承被紧急回滚”指 OpenAI 2025 年 4 月对一次 GPT-4o 更新的{' '}
+        <a href="https://openai.com/index/sycophancy-in-gpt-4o/" target="_blank" rel="noreferrer">
+          公开复盘
+        </a>
+        。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '两关调教之后，基座模型终于变成了会聊天、懂分寸的 ChatGPT。但你大概早就注意到一件事：同一个问题问它两次，回答往往不一样。这不是 bug —— 上一课说过，模型每一步吐出的是一张概率表，到底从表里挑哪个词，由一个叫“温度”的旋钮控制。下一课就来拧这个旋钮，看“严谨”和“天马行空”是怎么被同一个参数调出来的。',
+    bridgeSteps: ['已调教成助手（ChatGPT）', '同一问题，每次回答不同', '关键在“怎么从概率表挑词”', '下一课：温度与采样'],
     quizTitle: '✍️ 小练习',
     quiz: [
       { q: '1. 既然 SFT 有效，为什么不多雇些人、多写几十万条示范，非要费劲搞 RLHF？',
@@ -348,6 +381,19 @@ const C = {
     rlhfP4: <>But RLHF has an inborn weakness: <b>the judge isn’t the human itself, only an approximation of human taste</b> — and every “test-taking” system games the grading rubric. Write the answer a bit longer, it <i>looks like</i> a high score; make the tone a bit more enthusiastic, it <i>looks like</i> a high score; go along with the user, it <i>looks like</i> a high score. These tricks correlate with “truly answering well” but aren’t the same thing. The jargon is <b>reward hacking</b>. What exactly does it break into if you push too far? Push it yourself —</>,
     rlhfP5: <>See it? The judge’s score keeps climbing, but real human satisfaction peaks midway and falls back — because the model never optimizes for “answering well,” only for <b>“what the judge thinks is good.”</b> So during training you also tie a leash: don’t stray too far from the SFT model, and quit while you’re ahead in the “sweet spot,” lest it lose its ability to speak properly just to please the judge. Remember this intuition — the “sycophancy” in the next section is the fruit of pushing too far.</>,
 
+    rlhfSourceNote: (
+      <>
+        Training AI from human preferences comes from Christiano et al. 2017,{' '}
+        <a href="https://arxiv.org/abs/1706.03741" target="_blank" rel="noreferrer">
+          Deep Reinforcement Learning from Human Preferences
+        </a>
+        ; applying it systematically to align language models was OpenAI's InstructGPT, Ouyang et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noreferrer">
+          Training Language Models to Follow Instructions
+        </a>
+        .
+      </>
+    ),
     alignTitleSec: '🧭 What to Align To: the Three-Way Tug of Helpful, Honest, Harmless',
     alignLead: 'How demonstrations should be written and how rankings should be ordered need a guiding principle. The industry’s commonly accepted goal is three words — helpful, honest, harmless:',
     alignCards: [
@@ -379,6 +425,26 @@ const C = {
         why: <><b>Cause:</b> mistaking “performing better” for “knowing more.” The data used for alignment is orders of magnitude smaller than pretraining, with no room to pack in new knowledge. More subtle is the flip side: improper tuning can also teach bad habits — if both demonstrations and rankings favor “fluent, confident, complete answers,” the model learns to fluently and confidently make one up even when it doesn’t know the answer. “Fabricating to please” is exactly how hallucination gets amplified during alignment.</> },
     ],
 
+    alignFollowSourceNote: (
+      <>
+        DPO: Rafailov et al. 2023,{' '}
+        <a href="https://arxiv.org/abs/2305.18290" target="_blank" rel="noreferrer">
+          Direct Preference Optimization
+        </a>
+        ; Constitutional AI: Anthropic's Bai et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noreferrer">
+          Constitutional AI
+        </a>
+        . The "over-flattering update rolled back" mentioned above refers to OpenAI's April 2025{' '}
+        <a href="https://openai.com/index/sycophancy-in-gpt-4o/" target="_blank" rel="noreferrer">
+          postmortem
+        </a>
+        on a GPT-4o update.
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 14',
+    bridgeLead: 'After two rounds of training, the base model finally becomes the chatty, tactful ChatGPT. But you\'ve probably noticed something: ask it the same question twice and the answers often differ. That\'s not a bug — as the last lesson said, the model outputs a probability table at each step, and which word it picks from that table is controlled by a knob called "temperature." The next lesson turns that knob and shows how "rigor" and "wild creativity" both come out of the same one parameter.',
+    bridgeSteps: ['Trained into an assistant (ChatGPT)', 'Same question, different answer each time', 'Key: how to pick from the probability table', 'Next: Temperature & Sampling'],
     quizTitle: '✍️ Quick Quiz',
     quiz: [
       { q: '1. Since SFT works, why not hire more people and write hundreds of thousands more demonstrations, instead of going to the trouble of RLHF?',
@@ -699,6 +765,7 @@ export default function L13() {
         <p className="lead mt14">{c.rlhfP4}</p>
         <HackDemo c={c} />
         <p className="lead mt14">{c.rlhfP5}</p>
+        <p className="footnote source-note">{c.rlhfSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.alignTitleSec} lead={c.alignLead}>
@@ -726,6 +793,7 @@ export default function L13() {
             <div className="card use-card" key={i}><div className="label">{u.label}</div><div className="en">{u.en}</div><div className="zh">{u.zh}</div></div>
           ))}
         </div>
+        <p className="footnote source-note">{c.alignFollowSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.pitfallsTitle}>
@@ -746,6 +814,20 @@ export default function L13() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
