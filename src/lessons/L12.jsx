@@ -98,8 +98,8 @@ const C = {
     conceptLead: '上一课说过，大模型眼中的世界是一串 token。这一课回答下一个问题：拿到几十万亿个 token 之后，它到底在学什么？答案朴素得让人不敢相信 —— 整个预训练只做一件事，玩文字接龙。',
     concCards: [
       { label: '第一步 · 出题', en: <>给一段<b>前文</b></>, zh: <>从语料里随手截一段：“床前明月光，疑是地上”—— 让模型猜下一个 token 是什么。它输出的不是一个词，而是一张<b>概率表</b>：霜 92%、雪 3%、水 1%……每个候选都有一个押注。</> },
-      { label: '第二步 · 对答案', en: <>答案<b>就在原文里</b></>, zh: <>原文的下一个字“霜”就是标准答案 —— 不用出题老师，不用阅卷员。文本的每个位置都天然自带答案，这叫<b>自监督学习</b>。</> },
-      { label: '第三步 · 微调', en: <>错了就<b>拧参数</b></>, zh: <>猜偏了？用反向传播算出每个参数该负多少责，各拧一点点 —— 正是第 4、6 课那套“猜 → 比对 → 微调”的循环。然后换下一段文字，重复上万亿次。</> },
+      { label: '第二步 · 对答案', en: <>答案<b>就在原文里</b></>, zh: <>原文的下一个字“霜”就是标准答案 —— 不用出题老师，不用阅卷员。文本的每个位置都天然自带答案，这叫<b>自监督学习（self-supervised learning）</b>。</> },
+      { label: '第三步 · 微调', en: <>错了就<b>拧参数</b></>, zh: <>猜偏了？用反向传播（backpropagation）算出每个参数该负多少责，各拧一点点 —— 正是第 4、6 课那套“猜 → 比对 → 微调”的循环。然后换下一段文字，重复上万亿次。</> },
     ],
     concExEn: <>全部训练目标，一行就写完：把 <b>P(下一个 token | 前文)</b> 推得越高越好</>,
     concExZh: <>这是全课唯一的式子，逐个符号翻译：<b>P</b> 就是“概率”；中间那根竖线 <b>|</b> 读作“在……条件下”。整句人话：看着这段前文，原文里真正出现的那个词，你给它报的概率要越来越高。猜得越离谱，参数就拧得越狠。整个预训练，没有第二个目标。</>,
@@ -119,8 +119,17 @@ const C = {
     compP2: <>为什么非压缩不可，还有更深一层：<b>死记硬背在这个游戏里根本拿不到高分。</b>语料里的句子千变万化，明天截出来的前文几乎必然是没见过的 —— 背原文的模型一出考场就露馅（第 5 课的过拟合）。只有提炼出规律，才能在没见过的句子上照样接对。预测得越准，说明提炼得越深 —— 这就是那句行话<b>“压缩即智能”</b>。</>,
     compP3: <>这也解释了一个你天天在用、却很少细想的现象：让 ChatGPT“用李白的风格写一首关于程序员的诗”，互联网上并不存在这篇诗，它却能写出来 —— 因为参数里存的不是哪首诗的原文，而是“李白风格”这条<b>规律本身</b>。语法、事实、逻辑、翻译、编程，没有一样是单独教的课程，全是把一个游戏玩到极致之后的副产品。当然，硬币有反面：压缩是<b>有损</b>的，细节会被揉在一起记混 —— 这笔账先记下，到“常见误区”再算。</>,
 
+    compSourceNote: (
+      <>
+        “压缩即智能”可参考 OpenAI 的 Ilya Sutskever 2023 在 Simons 研究所的报告{' '}
+        <a href="https://www.youtube.com/watch?v=AKMuA_TVz3A" target="_blank" rel="noreferrer">
+          An Observation on Generalization
+        </a>
+        ；理论根基可追溯到 Kolmogorov 复杂度与 Solomonoff 归纳。
+      </>
+    ),
     autoTitle: '📖 逐字蹦出的秘密：接龙的现场直播',
-    autoLead: '训练时玩接龙，用的时候 —— 还是玩接龙，只是反着玩：这回没有原文对答案了，模型从自己的概率表里挑一个词接上去，再把这个词贴回前文末尾，整个重算一遍、接下一个……一个字一个字往外滚，直到接出“该停了”的信号。这个“自己接自己”的玩法叫自回归生成。记住它，你在 ChatGPT 里看到的好几个“怪现象”瞬间全通了：',
+    autoLead: '训练时玩接龙，用的时候 —— 还是玩接龙，只是反着玩：这回没有原文对答案了，模型从自己的概率表里挑一个词接上去，再把这个词贴回前文末尾，整个重算一遍、接下一个……一个字一个字往外滚，直到接出“该停了”的信号。这个“自己接自己”的玩法叫自回归生成（autoregressive generation）。记住它，你在 ChatGPT 里看到的好几个“怪现象”瞬间全通了：',
     autoCards: [
       { label: '你看到的现象', en: <>回答<b>一个字一个字蹦</b>出来</>, zh: <><b>背后机制：</b>不是打字机特效。每个 token 都是一轮完整的接龙 —— 算完一个才有下一个，你看到的是生成现场的实时直播。</> },
       { label: '你看到的现象', en: <>同一个问题，<b>每次回答不一样</b></>, zh: <><b>背后机制：</b>模型输出的是概率表，不是唯一答案 —— 产品按概率“抽签”挑词，抽签自然每次不同。怎么控制这个随机性，第 14 课的温度专讲。</> },
@@ -146,9 +155,21 @@ const C = {
       { label: '训练成本', en: <>百万美元级<b>电费</b></>, zh: <>仅电费就以百万美元计，整体成本更是高出一个量级 —— 牌桌上只剩少数玩家。</> },
     ],
     factoryFootnote: <>※ 以上为 2025 年前后旗舰模型的<b>数量级示意</b>，不同模型差异巨大，具体数字以各家官方披露为准。</>,
+    factorySourceNote: (
+      <>
+        正文提到的 Common Crawl 是公开的全网抓取数据集，许多大模型的网页语料以它为基础：{' '}
+        <a href="https://commoncrawl.org/" target="_blank" rel="noreferrer">
+          commoncrawl.org
+        </a>
+        。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '预训练把满肚子知识浇进了参数，却留下一个怪毛病：基座模型只会续写文档，不会好好回答你 —— 知识在，但不听话。下一课就来做“精装修”：先用人写的优质问答示范教它“该这么说话”（监督微调），再用人类的打分把它调得更懂分寸（人类反馈强化学习）。同一个基座，就这样被调教成你熟悉的 ChatGPT。',
+    bridgeSteps: ['基座模型：知识已就位', '只会续写、不会对话', '用示范 + 打分来调教', '下一课：SFT 与 RLHF'],
 
     baseTitle: '📖 刚出炉的基座模型：满腹经纶，却不会聊天',
-    baseLead: '烧掉几个月电费之后，你得到的并不是 ChatGPT，而是一个“基座模型”。给它一个最准确的心智模型：宇宙文档补全器 —— 无论你输入什么，它都假设这是互联网上某篇文档的开头，然后竭尽全力把这篇文档“写完”。它读完了整个互联网，但行为模式只有这一种。不信你问它一个问题 ——',
+    baseLead: '烧掉几个月电费之后，你得到的并不是 ChatGPT，而是一个“基座模型（base model）”。给它一个最准确的心智模型：宇宙文档补全器 —— 无论你输入什么，它都假设这是互联网上某篇文档的开头，然后竭尽全力把这篇文档“写完”。它读完了整个互联网，但行为模式只有这一种。不信你问它一个问题 ——',
     baseContrast1Tag: '你以为它会答',
     baseContrast1Big: <>“中国的首都是哪里？”<br />—— <span className="hl">北京。</span></>,
     baseContrast1Note: '有问有答，这是“助手”的行为。可惜，助手不是预训练直接产出的。',
@@ -168,7 +189,7 @@ const C = {
       {
         bad: '模型每天都在联网冲浪，持续学习新知识',
         good: '训练截止那一刻参数就被冻结了 —— 之后发生的新闻、新梗，它一概不知道',
-        why: <><b>病因：</b>把产品的“联网搜索”功能当成了模型本身的能力。重新训练一次贵到没法天天做，所以每个模型都有“知识截止日期”。想让它聊最新消息，得把资料现场喂进上下文里 —— 这套“外挂知识库”的玩法叫 RAG，第 18 课专讲。</>,
+        why: <><b>病因：</b>把产品的“联网搜索”功能当成了模型本身的能力。重新训练一次贵到没法天天做，所以每个模型都有“知识截止日期”。想让它聊最新消息，得把资料现场喂进上下文里 —— 这套“外挂知识库”的玩法叫 RAG（检索增强生成），第 18 课专讲。</>,
       },
     ],
 
@@ -295,6 +316,15 @@ const C = {
     compP2: <>There is a deeper reason compression is unavoidable: <b>rote memorization simply cannot score high in this game.</b> The sentences in the corpus vary endlessly, and the preceding text sliced out tomorrow is almost certain to be unseen — a model that memorizes the source falls apart the moment it leaves the exam room (Lesson 5\'s overfitting). Only by distilling patterns can it still continue unseen sentences correctly. The more accurate the prediction, the deeper the distillation — this is the industry saying <b>"compression is intelligence."</b></>,
     compP3: <>This also explains a phenomenon you use every day but rarely think about: ask ChatGPT to "write a poem about programmers in Li Bai\'s style" — this poem does not exist on the internet, yet it can write one — because what the parameters store is not the source text of any poem but the <b>pattern itself</b> of "Li Bai\'s style." Grammar, facts, logic, translation, programming — none of them is a separately taught course; all are byproducts of playing one game to perfection. Of course, the coin has a flip side: compression is <b>lossy</b>, and details get mashed together and confused — note this down, we will settle the account under "common misconceptions."</>,
 
+    compSourceNote: (
+      <>
+        For "compression is intelligence," see OpenAI's Ilya Sutskever, 2023, at the Simons Institute,{' '}
+        <a href="https://www.youtube.com/watch?v=AKMuA_TVz3A" target="_blank" rel="noreferrer">
+          An Observation on Generalization
+        </a>
+        ; its theoretical roots trace back to Kolmogorov complexity and Solomonoff induction.
+      </>
+    ),
     autoTitle: '📖 The Secret of Spitting Out Text Character by Character: A Live Broadcast of Continuation',
     autoLead: 'In training it plays continuation; in use — it still plays continuation, just in reverse: this time there is no source to check against, so the model picks a word from its own probability table, appends it to the end of the preceding text, recomputes the whole thing, and continues the next one… rolling out character by character until it produces a "time to stop" signal. This "continuing on itself" play is called autoregressive generation. Remember it, and several "weird phenomena" you see in ChatGPT instantly all make sense:',
     autoCards: [
@@ -322,6 +352,18 @@ const C = {
       { label: 'Training cost', en: <>millions of dollars in <b>electricity</b></>, zh: <>The electricity bill alone runs into the millions of dollars, and the total cost is an order of magnitude higher — only a few players are left at the table.</> },
     ],
     factoryFootnote: <>※ The above are <b>order-of-magnitude illustrations</b> for flagship models around 2025; different models vary enormously, and exact figures should follow each company\'s official disclosures.</>,
+    factorySourceNote: (
+      <>
+        Common Crawl, mentioned in the text, is a public whole-web crawl dataset that many large models use as the base of their web corpus:{' '}
+        <a href="https://commoncrawl.org/" target="_blank" rel="noreferrer">
+          commoncrawl.org
+        </a>
+        .
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 13',
+    bridgeLead: 'Pretraining cast a head full of knowledge into the parameters, but left a quirk: the base model only continues documents, it won\'t actually answer you — the knowledge is there, but it won\'t obey. The next lesson does the "interior finishing": first teach it "how to speak" with human-written, high-quality Q&A demonstrations (supervised fine-tuning), then tune its sense of propriety with human ratings (reinforcement learning from human feedback). The same base, shaped into the ChatGPT you know.',
+    bridgeSteps: ['Base model: knowledge in place', 'Only continues, can\'t converse', 'Tune with demos + ratings', 'Next: SFT & RLHF'],
 
     baseTitle: '📖 The Freshly Baked Base Model: Full of Knowledge, Yet Cannot Chat',
     baseLead: 'After burning months of electricity, what you get is not ChatGPT but a "base model." Give it the most accurate mental model: a universal document completer — whatever you type, it assumes it is the opening of some document on the internet and does its utmost to "finish" that document. It has read the whole internet, but it has only this one behavior pattern. Don\'t believe it? Ask it a question —',
@@ -629,6 +671,7 @@ export default function L12() {
         <p className="lead mt14">{c.compP1}</p>
         <p className="lead">{c.compP2}</p>
         <p className="lead">{c.compP3}</p>
+        <p className="footnote source-note">{c.compSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.autoTitle} lead={c.autoLead}>
@@ -655,6 +698,7 @@ export default function L12() {
           ))}
         </div>
         <p className="footnote mt14">{c.factoryFootnote}</p>
+        <p className="footnote source-note">{c.factorySourceNote}</p>
       </Lsec>
 
       <Lsec title={c.baseTitle} lead={c.baseLead}>
@@ -693,6 +737,20 @@ export default function L12() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
