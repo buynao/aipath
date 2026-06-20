@@ -122,6 +122,15 @@ const C = {
       { label: '习惯三', en: <>提问<b>点名引用</b></>, zh: <>“根据第 3 节的退款条款……”比“根据上面的文档……”更能把注意力拽到正确的位置。</> },
     ],
 
+    lostSourceNote: (
+      <>
+        “迷失在中间”的实验出自 Liu 等 2023{' '}
+        <a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noreferrer">
+          Lost in the Middle: How Language Models Use Long Contexts
+        </a>
+        。
+      </>
+    ),
     raceTitle: '📈 军备竞赛与代价：从 4k 到 1M+',
     raceLead: '既然窗这么关键，把窗做大自然成了各家的军备竞赛。几年间窗口尺寸涨了几个数量级 —— 但每一寸窗口，都明码标价。先看竞赛战况：',
     raceHead: ['窗口量级', '大约能装下', '时代'],
@@ -160,6 +169,9 @@ const C = {
       },
     ],
 
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '这一课反复出现一招：把信息存在窗外，用的时候再塞回窗内。本课的两条破局路线之一——RAG 按需检索——正是把这招做到工程化的极致：与其把整个知识库硬塞进有限的窗，不如建一个外部资料库，每次只检索最相关的几段放进窗。下一课就整课拆解 RAG：切块、向量化、检索、注入，看它如何给大模型“外挂”一个用不完的知识库。',
+    bridgeSteps: ['窗有限、会话级', '诀窍：信息存窗外、用时塞回', '资料场景的工程化解法', '下一课：RAG'],
     quizTitle: '✍️ 小练习',
     quiz: [
       {
@@ -276,6 +288,15 @@ const C = {
       { label: 'Habit 3', en: <>Cite by name when asking</>, zh: <>“According to the refund clause in Section 3…” pulls attention to the right place far better than “according to the document above…”</> },
     ],
 
+    lostSourceNote: (
+      <>
+        The "lost in the middle" experiment is from Liu et al. 2023,{' '}
+        <a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noreferrer">
+          Lost in the Middle: How Language Models Use Long Contexts
+        </a>
+        .
+      </>
+    ),
     raceTitle: '📈 The Arms Race and Its Price: From 4k to 1M+',
     raceLead: 'Since the window matters so much, making it bigger naturally became an arms race among the vendors. Over a few years window sizes grew by several orders of magnitude — but every inch of window carries a clear price tag. First, the state of the race:',
     raceHead: ['Window size', 'Roughly fits', 'Era'],
@@ -314,6 +335,9 @@ const C = {
       },
     ],
 
+    bridgeTitle: '➡️ How This Leads to Lesson 18',
+    bridgeLead: 'One move kept recurring this lesson: store information outside the window and slip it back in when needed. One of this lesson\'s two escape routes — RAG, retrieve on demand — takes that move to its engineering extreme: rather than cramming a whole knowledge base into a limited window, build an external library and retrieve only the most relevant few passages each time. The next lesson is all about RAG: chunk, embed, retrieve, inject — see how it bolts a never-ending knowledge base onto a large model.',
+    bridgeSteps: ['Window is limited & session-scoped', 'Trick: store outside, slip back in', 'The engineered fix for reference material', 'Next: RAG'],
     quizTitle: '✍️ Quick Quiz',
     quiz: [
       {
@@ -497,6 +521,7 @@ export default function L17() {
             <div className="card use-card" key={i}><div className="label">{h.label}</div><div className="en">{h.en}</div><div className="zh">{h.zh}</div></div>
           ))}
         </div>
+        <p className="footnote source-note">{c.lostSourceNote}</p>
       </Lsec>
 
       <Lsec
@@ -553,6 +578,20 @@ export default function L17() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
