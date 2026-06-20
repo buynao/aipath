@@ -99,6 +99,19 @@ const C = {
     journeyWhy: <><b>为什么非要“结构化文本”不可？</b>早期玩家试过土办法：在 prompt 里恳求模型“需要查天气时请输出 CALL: weather(上海)”，再用程序去解析。结果格式天天漂移。现代方案做了两件事：① 官方约定一套严格的 JSON 格式；② 在微调阶段（第 13 课的 SFT）用大量样例<b>专门训练</b>模型生成这种格式。所以“会开申请单”是练出来的本领，不是天上掉下来的魔法。</>,
     journeyLimit: <><b>但它仍有局限</b>：开单这件事本身还是概率生成（第 14 课）。模型可能挑错工具、编造一个不存在的参数值、把“该调”判断成“不用调”。所以宿主对每张申请单都必须校验再执行 —— 药房不核对处方就抓药，出了事故算谁的？这个追问，正是后面安全一节的入口。</>,
 
+    journeySourceNote: (
+      <>
+        “训练模型自己决定何时调用工具”的代表工作有 Meta 的 Toolformer，Schick 等 2023{' '}
+        <a href="https://arxiv.org/abs/2302.04761" target="_blank" rel="noreferrer">
+          Toolformer
+        </a>
+        ，以及“边推理边调用”的 ReAct，Yao 等 2022{' '}
+        <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noreferrer">
+          ReAct: Synergizing Reasoning and Acting
+        </a>
+        。
+      </>
+    ),
     descTitle: '📖 工具描述：被低估的另一种提示工程',
     descLead: '上一节埋了一句话：工具清单会进入上下文，工具描述就是 prompt。模型决定“调不调、调哪个、参数怎么填”，唯一的依据就是那几行 description —— 写得模糊，模型就乱调或不调。对比一对真实风格的反面与正面教材：',
     descBadTag: '反面教材',
@@ -137,6 +150,9 @@ const C = {
       },
     ],
 
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '这一课你看到一个完整回合：模型开单 → 宿主执行 → 结果回填 → 模型作答。但它只跑了一轮就停了。如果任务要好几步——先查天气、再查机票、订不到就换一天——谁来盯着“做完没、下一步做什么”？答案是把这个回合装进一个“感知→规划→行动→反思”的循环里，让模型自己驱动多轮工具调用。这就是下一课的主角：Agent 智能体。',
+    bridgeSteps: ['单次工具调用回合', '复杂任务需要好几步', '把回合装进循环', '下一课：Agent 智能体'],
     quizTitle: '✍️ 小练习',
     quiz: [
       {
@@ -241,6 +257,19 @@ const C = {
     journeyWhy: <><b>Why insist on “structured text”?</b> Early players tried a crude approach: begging the model in the prompt to “output CALL: weather(Shanghai) when you need to check the weather,” then parsing it with code. The result was format drift every single day. The modern solution does two things: ① officially settles on a strict JSON format; ② during fine-tuning (the SFT of Lesson 13), <b>specifically trains</b> the model on heaps of examples to generate this format. So “knowing how to file a request” is a learned skill, not magic falling from the sky.</>,
     journeyLimit: <><b>But it still has limits</b>: filing the request is itself still probabilistic generation (Lesson 14). The model may pick the wrong tool, fabricate a nonexistent argument value, or judge “should call” as “no need to call.” So the host must validate before executing every request — if a pharmacy fills a prescription without checking it and an accident happens, who’s to blame? That very question is the entrance to the safety section ahead.</>,
 
+    journeySourceNote: (
+      <>
+        Representative work on "training models to decide when to call tools" includes Meta's Toolformer, Schick et al. 2023,{' '}
+        <a href="https://arxiv.org/abs/2302.04761" target="_blank" rel="noreferrer">
+          Toolformer
+        </a>
+        , and ReAct ("reason while acting"), Yao et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noreferrer">
+          ReAct: Synergizing Reasoning and Acting
+        </a>
+        .
+      </>
+    ),
     descTitle: '📖 Tool Descriptions: An Underrated Kind of Prompt Engineering',
     descLead: 'The previous section planted one line: the tool list enters the context, and the tool description is the prompt. The model’s only basis for deciding “whether to call, which to call, how to fill the arguments” is those few lines of description — write them vaguely, and the model calls wildly or not at all. Compare a realistic negative and positive example:',
     descBadTag: 'Negative example',
@@ -279,6 +308,9 @@ const C = {
       },
     ],
 
+    bridgeTitle: '➡️ How This Leads to Lesson 20',
+    bridgeLead: 'This lesson showed one full turn: the model files a request → the host executes → the result is fed back → the model answers. But it ran only one round and stopped. If a task takes several steps — check the weather, then check flights, switch days if sold out — who keeps watch on "are we done, what\'s next"? The answer is to wrap this turn in a "perceive → plan → act → reflect" loop and let the model drive multiple rounds of tool calls itself. That\'s the star of the next lesson: agents.',
+    bridgeSteps: ['A single tool-calling turn', 'Complex tasks need several steps', 'Wrap the turn in a loop', 'Next: Agents'],
     quizTitle: '✍️ Quick Quiz',
     quiz: [
       {
@@ -458,6 +490,7 @@ export default function L19() {
         </div>
         <p className="lead mt14">{c.journeyWhy}</p>
         <p className="lead">{c.journeyLimit}</p>
+        <p className="footnote source-note">{c.journeySourceNote}</p>
       </Lsec>
 
       <Lsec title={c.descTitle} lead={c.descLead}>
@@ -507,6 +540,20 @@ export default function L19() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
