@@ -86,7 +86,7 @@ const C = {
     flowLead: '场景：你在 ChatGPT / Claude 里上传一张猫的照片，问“这只猫是什么品种？”。从你按下发送到它开口，照片经历了五步：',
     flowSteps: [
       <><b>预处理切块。</b>照片先被缩放到模型规定的尺寸，再切成棋盘格 —— 几百个 patch。原图再高清，超出规定尺寸的像素这一步就没了。</>,
-      <><b>视觉编码器上场。</b>每个 patch 被压成一个向量。这一摞向量就是“图像 token”—— 规格和文字 token 完全相同，排在队伍里谁也认不出谁来自照片。</>,
+      <><b>视觉编码器（vision encoder）上场。</b>每个 patch 被压成一个向量。这一摞向量就是“图像 token”—— 规格和文字 token 完全相同，排在队伍里谁也认不出谁来自照片。</>,
       <><b>拼成一条序列。</b>【图像 token × 几百】＋【“这只猫是什么品种？”的文字 token × 几个】排成一队，整队送进 Transformer。<span className="footnote">对模型来说，这就是一段“长 prompt”—— 只是前几百个 token 碰巧来自照片。</span></>,
       <><b>注意力跨模态扫描。</b>生成回答时，“品种”相关的注意力大量落在猫脸、毛色花纹对应的 patch 上 —— 和第 9 课判断“它指代谁”的机制一模一样，只是对象从词换成了图块。</>,
       <><b>接龙输出文字。</b>“这是一只英国短毛猫……”逐 token 生成，第 12 课的老规矩。</>,
@@ -119,6 +119,22 @@ const C = {
       { label: '语音 · 实时同声传译', en: <>语音 token <b>直进直出</b></>, zh: '听中文语音 token，直接接龙吐出英文语音 token，不经文字稿中转。延迟低到能跟上对话节奏，还能保留说话人的语气起伏。' },
     ],
 
+    splitSourceNote: (
+      <>
+        “把图切成 patch、当 token 喂进 Transformer”出自 Vision Transformer，Dosovitskiy 等 2021{' '}
+        <a href="https://arxiv.org/abs/2010.11929" target="_blank" rel="noreferrer">
+          An Image is Worth 16x16 Words
+        </a>
+        ；让图文共享同一个语义空间的奠基工作是 OpenAI 的 CLIP，Radford 等 2021{' '}
+        <a href="https://arxiv.org/abs/2103.00020" target="_blank" rel="noreferrer">
+          Learning Transferable Visual Models From Natural Language Supervision
+        </a>
+        。
+      </>
+    ),
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '到这里，AI 已经能看、能听、能说。但无论文字还是图像，它给答案的方式始终是第 12 课那台“逐 token 接龙”的机器——张口就答，不打草稿。遇到多步数学、复杂推理，这种“想都不想就说”的习惯就会翻车（第 15 课的走钢丝效应）。下一课讲推理模型：让模型在回答前先“想一长串”，用回答时多花的算力换取更高的智力——从 o1 到 DeepSeek-R1 的新范式。',
+    bridgeSteps: ['AI 已能看、听、说', '但仍是张口就答', '多步推理容易翻车', '下一课：推理模型'],
     demoTitle: '🎛️ 交互演示：三路汇流，万物归 token',
     demoLead: '把全课压成一张图。一次提问里同时有照片、打字的问题、一段语音留言 —— 看它们如何各自 token 化、汇成同一条序列、流过同一个 Transformer。点击图中任意一路（或右侧按钮），看该模态是怎么变成 token 的。',
 
@@ -265,6 +281,22 @@ const C = {
       { label: 'Voice · real-time interpretation', en: <>Voice tokens <b>straight in, straight out</b></>, zh: 'It hears Chinese voice tokens and directly generates English voice tokens in turn, without routing through a transcript. Latency is low enough to keep up with the rhythm of conversation, and it can preserve the speaker’s rise and fall of tone.' },
     ],
 
+    splitSourceNote: (
+      <>
+        "Slice an image into patches and feed them to a Transformer as tokens" comes from the Vision Transformer, Dosovitskiy et al. 2021,{' '}
+        <a href="https://arxiv.org/abs/2010.11929" target="_blank" rel="noreferrer">
+          An Image is Worth 16x16 Words
+        </a>
+        ; the foundational work for sharing one semantic space across image and text is OpenAI's CLIP, Radford et al. 2021,{' '}
+        <a href="https://arxiv.org/abs/2103.00020" target="_blank" rel="noreferrer">
+          Learning Transferable Visual Models From Natural Language Supervision
+        </a>
+        .
+      </>
+    ),
+    bridgeTitle: '➡️ How This Leads to Lesson 23',
+    bridgeLead: 'By now AI can see, hear, and speak. But whether the input is text or images, the way it produces an answer is still Lesson 12\'s "token-by-token autocompletion" machine — it answers on the spot, no draft. For multi-step math or complex reasoning, this "speak before thinking" habit goes off the rails (Lesson 15\'s tightrope effect). The next lesson covers reasoning models: letting the model "think at length" before answering, trading more compute at answer time for more intelligence — the new paradigm from o1 to DeepSeek-R1.',
+    bridgeSteps: ['AI can see, hear, speak', 'But still answers on the spot', 'Multi-step reasoning breaks down', 'Next: Reasoning Models'],
     demoTitle: '🎛️ Interactive: Three Streams Merge, Everything Becomes Tokens',
     demoLead: 'Compress the whole lesson into one diagram. A single query holds a photo, a typed question, and a voice message all at once — watch how they each get tokenized, merge into one sequence, and flow through the same Transformer. Click any stream in the figure (or a button on the right) to see how that modality becomes tokens.',
 
@@ -569,6 +601,7 @@ export default function L22() {
             <div className="card use-card" key={i}><div className="label">{u.label}</div><div className="en">{u.en}</div><div className="zh">{u.zh}</div></div>
           ))}
         </div>
+        <p className="footnote source-note">{c.splitSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.demoTitle} lead={c.demoLead}>
@@ -593,6 +626,20 @@ export default function L22() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
