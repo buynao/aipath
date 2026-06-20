@@ -143,6 +143,19 @@ const C = {
     ],
     relWhyCode: <>这也顺手回答了一个现象级问题：<b>为什么写代码的 agent 最先成熟？</b>因为代码天生自带免费的验证器 —— 编译器和测试。每一轮“观察”拿到的都是客观硬信号，错误活不过一轮就被发现；改错了还能一键回滚。而“全自动炒股”“全自动谈判”这类任务，反馈慢、噪声大、错误不可逆 —— 连乘衰减无人拦截。一条好用的经验法则：<b>结果越容易被便宜地验证、错误越可逆的领域，agent 越早能用。</b>下次看 agent 新品发布，先问这两个问题，比看 demo 视频靠谱。</>,
     // ---- 交互演示 ----
+    relSourceNote: (
+      <>
+        “思考 + 行动”交替的循环范式见 Yao 等 2022{' '}
+        <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noreferrer">
+          ReAct
+        </a>
+        ；“读着失败足迹自我反思再重试”的代表工作是 Shinn 等 2023{' '}
+        <a href="https://arxiv.org/abs/2303.11366" target="_blank" rel="noreferrer">
+          Reflexion
+        </a>
+        。
+      </>
+    ),
     demoSecTitle: '🎛️ 交互演示：围观一个 agent 的一生',
     demoSecLead: '任务剧本：「调研三款降噪耳机并给出购买建议」。上方是循环图，下方是 agent 的足迹日志 —— 每点一次「下一轮」，循环图点亮对应节拍，日志追加这一轮的思考 / 行动 / 观察。盯紧第 3、4 轮：一次 404 失败，和一次教科书式的反思绕路。',
     // ---- 常见误区 ----
@@ -160,6 +173,9 @@ const C = {
       },
     ],
     // ---- 小练习 ----
+    bridgeTitle: '➡️ 下一课怎么接上',
+    bridgeLead: '到这里，“应用篇”收官：从写提示词、外挂知识、调用工具，到把它们串成自主干活的 agent，你已经能把一个大模型真正“用起来”。但前 20 课的主角始终是文字。从下一阶段“前沿篇”起，AI 冲出文本的边界 —— 第一站是文生图：从一张纯噪点出发，一步步“去噪”成一幅画。扩散模型背后那个反直觉的原理，正是 Stable Diffusion、Midjourney 的引擎。',
+    bridgeSteps: ['应用篇收官', '已能把模型用起来', '冲出文字的边界', '下一课：扩散模型文生图'],
     quizTitle: '✍️ 小练习',
     quiz: [
       {
@@ -310,6 +326,19 @@ const C = {
     ],
     relWhyCode: <>This also conveniently answers a phenomenal question: <b>why did coding agents mature first?</b> Because code comes with a free verifier by nature — the compiler and the tests. Every round\'s "observe" gets an objective hard signal; an error doesn\'t survive past one round before being caught; and if you fix it wrong, you can roll back with one click. Tasks like "fully automated stock trading" and "fully automated negotiation" are the opposite — slow feedback, heavy noise, irreversible errors — with no one to stop the compounding decay. A handy rule of thumb: <b>the more cheaply a result can be verified and the more reversible the errors, the sooner an agent becomes usable in that domain.</b> Next time you watch an agent product launch, ask these two questions first — more reliable than watching the demo video.</>,
     // ---- Interactive demo ----
+    relSourceNote: (
+      <>
+        The alternating "reason + act" loop paradigm is from Yao et al. 2022,{' '}
+        <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noreferrer">
+          ReAct
+        </a>
+        ; the "read the failure trace, self-reflect, then retry" approach is from Shinn et al. 2023,{' '}
+        <a href="https://arxiv.org/abs/2303.11366" target="_blank" rel="noreferrer">
+          Reflexion
+        </a>
+        .
+      </>
+    ),
     demoSecTitle: '🎛️ Interactive Demo: watch an agent\'s whole life',
     demoSecLead: 'Task script: "Research three noise-cancelling headphones and give a buying recommendation." Above is the loop diagram, below is the agent\'s footprint log — each time you click "Next round," the loop diagram lights up the corresponding beat and the log appends this round\'s think / act / observe. Watch rounds 3 and 4 closely: a 404 failure, and a textbook reflective detour.',
     // ---- Common Misconceptions ----
@@ -327,6 +356,9 @@ const C = {
       },
     ],
     // ---- Quick Quiz ----
+    bridgeTitle: '➡️ How This Leads to Lesson 21',
+    bridgeLead: 'With this, the "Applications" stage wraps up: from writing prompts, bolting on knowledge, and calling tools, to chaining them into an agent that works on its own, you can now genuinely put a large model to use. But the star of the first 20 lessons was always text. From the next stage, "Frontier," AI breaks out of the text boundary — first stop, text-to-image: starting from pure noise and "denoising" step by step into a picture. The counterintuitive principle behind diffusion models is exactly the engine of Stable Diffusion and Midjourney.',
+    bridgeSteps: ['Applications stage wraps up', 'You can put models to work', 'Break out of text', 'Next: Diffusion text-to-image'],
     quizTitle: '✍️ Quick Quiz',
     quiz: [
       {
@@ -555,6 +587,7 @@ export default function L20() {
           ))}
         </div>
         <p className="lead mt14">{c.relWhyCode}</p>
+        <p className="footnote source-note">{c.relSourceNote}</p>
       </Lsec>
 
       <Lsec title={c.demoSecTitle} lead={c.demoSecLead}>
@@ -579,6 +612,20 @@ export default function L20() {
         <div className="card quiz row-list">
           {c.quiz.map((qz, i) => (
             <QuizItem key={i} q={qz.q}>{qz.a}</QuizItem>
+          ))}
+        </div>
+      </Lsec>
+
+      <Lsec title={c.bridgeTitle} lead={c.bridgeLead}>
+        <div className="bridge-flow">
+          {c.bridgeSteps.map((step, i) => (
+            <span className="bridge-flow-item" key={step}>
+              <span className="bridge-flow-step">
+                <b>{i + 1}</b>
+                {step}
+              </span>
+              {i < c.bridgeSteps.length - 1 && <span className="bridge-flow-arrow">→</span>}
+            </span>
           ))}
         </div>
       </Lsec>
