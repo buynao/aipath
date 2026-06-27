@@ -9,8 +9,8 @@ import { pick } from "../i18n/pick.js";
 
 // 四项统计的数值（与语言无关，标签来自字典 t.home.statLabels）
 const STAT_NUMS = [
-  "6",
-  "30",
+  "7",
+  "34",
   (
     <>
       10–30<span style={{ fontSize: 15 }}>min</span>

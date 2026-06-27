@@ -1,6 +1,6 @@
 // ============================================================
 // AI 通识课 · 课程数据层（中英双语）
-// 6 阶段 × 30 课的目录元数据。首页、课程页、上下课导航均由此驱动。
+// 7 阶段 × 34 课的目录元数据。首页、课程页、上下课导航均由此驱动。
 // 文本字段为 { zh, en }；消费端用 i18n/pick.js 的 pick(field, lang) 取值。
 // tags 用语义色药丸；dots 为难度（1-3）；ready=true 表示已迁移到 React 组件。
 // ============================================================
@@ -58,6 +58,15 @@ export const stages = [
     goal: {
       zh: '目标：写真正的代码，把前 25 课的概念变成能跑起来的应用 —— 这是从学习者到构建者的最后一跃。',
       en: 'Goal: write real code and turn the concepts from the first 25 lessons into working apps — the final leap from learner to builder.',
+    },
+  },
+  {
+    num: { zh: '第七阶段', en: 'Stage 7' },
+    title: { zh: '番外篇 · 真实世界 AI 拆解', en: 'Extras · Real-World AI Teardowns' },
+    count: 4,
+    goal: {
+      zh: '目标：把课堂上的原理，放到真实世界的明星产品上验货 —— 一课拆解一个系统，看顶尖团队到底强在哪。本篇会持续更新、陆续加课。',
+      en: 'Goal: stress-test the principles from class against real-world star products — one system teardown per lesson, seeing where top teams actually excel. This section keeps growing over time.',
     },
   },
 ]
@@ -176,6 +185,23 @@ export const lessons = [
   { id: 30, slug: '30-learning-map', stage: 5, level: lv.intro, dots: 1, tags: [], ready: true, minutes: 14,
     title: { zh: '终点亦起点：AI 进阶学习地图', en: 'The End Is a Beginning: A Map for Going Further' },
     desc: { zh: '论文怎么读、社区在哪里、方向怎么选 —— 把这门课变成你 AI 之旅的第一级台阶，而非终点。', en: 'How to read papers, where the communities are, how to choose a direction — make this course the first step of your AI journey, not the last.' } },
+
+  // ---------- 第七阶段 · 番外篇 ----------
+  { id: 31, slug: '31-inside-manus', stage: 6, level: lv.adv, dots: 3, tags: [sky, terra], ready: true, minutes: 18,
+    title: { zh: 'Manus 拆解：顶尖 Agent 的上下文工程', en: 'Inside Manus: The Context Engineering Behind a Top Agent' },
+    desc: { zh: '它不靠秘密模型，而把“上下文工程”做到极致。六条来自官方博客的实战经验，看懂工业级 Agent 的真护城河。', en: 'It relies on no secret model, but pushes “context engineering” to the extreme. Six hands-on lessons from the official blog reveal the real moat of an industrial-grade agent.' } },
+
+  { id: 32, slug: '32-inside-cursor', stage: 6, level: lv.adv, dots: 3, tags: [sky, terra], ready: true, minutes: 18,
+    title: { zh: 'Cursor 拆解：AI 怎么读懂你的整个代码库', en: 'Inside Cursor: How AI Reads Your Whole Codebase' },
+    desc: { zh: '不是套壳 ChatGPT，而是一组自研小模型 + 代码版 RAG + 推理加速。看懂“模型之外的护城河”。', en: 'Not a ChatGPT wrapper, but an ensemble of in-house models + RAG for code + inference acceleration. Understand “the moat outside the model.”' } },
+
+  { id: 33, slug: '33-inside-deepseek', stage: 6, level: lv.adv, dots: 3, tags: [sky, terra], ready: true, minutes: 19,
+    title: { zh: 'DeepSeek 拆解：用几分之一的钱训出顶尖模型', en: 'Inside DeepSeek: A Top Model Trained for a Fraction of the Cost' },
+    desc: { zh: '“560 万美元”究竟算了什么？看 MoE、MLA、FP8 与纯强化学习，如何把“省钱”做成系统工程。', en: 'What does “$5.6M” actually count? See how MoE, MLA, FP8, and pure RL turn frugality into a systems discipline.' } },
+
+  { id: 34, slug: '34-inside-character-ai', stage: 6, level: lv.adv, dots: 3, tags: [sky, terra], ready: true, minutes: 18,
+    title: { zh: 'Character.AI 拆解：海量陪聊的成本怎么压下来', en: 'Inside Character.AI: Keeping Mass Companion-Chat Cheap' },
+    desc: { zh: '把推理瓶颈从“算力”重新定义为 KV cache，再用 MQA、滑动窗口、跨层共享一层层榨干成本。', en: 'Redefine the inference bottleneck from “compute” to the KV cache, then wring out cost with MQA, sliding windows, and cross-layer sharing.' } },
 ]
 
 // 便捷查询

@@ -43,6 +43,10 @@ const REGISTRY = {
   '28-build-rag': lazy(() => import('../lessons/L28.jsx')),
   '29-evals-and-safety': lazy(() => import('../lessons/L29.jsx')),
   '30-learning-map': lazy(() => import('../lessons/L30.jsx')),
+  '31-inside-manus': lazy(() => import('../lessons/L31.jsx')),
+  '32-inside-cursor': lazy(() => import('../lessons/L32.jsx')),
+  '33-inside-deepseek': lazy(() => import('../lessons/L33.jsx')),
+  '34-inside-character-ai': lazy(() => import('../lessons/L34.jsx')),
 }
 
 // 尚未迁移课程的占位内容
